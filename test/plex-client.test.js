@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PlexClient } from '../src/plex-client.js';
+import { PlexClient, redactPlexSecrets } from '../src/plex-client.js';
 
 function client(overrides = {}) {
   return new PlexClient({
@@ -52,4 +52,9 @@ test('normalizes direct-play and transcode metadata', () => {
   });
   assert.equal(mp3.directPlayable, true);
   assert.equal(flac.directPlayable, false);
+});
+
+test('redacts Plex tokens from diagnostic text', () => {
+  assert.equal(redactPlexSecrets('GET /x?X-Plex-Token=actual-token'), 'GET /x?X-Plex-Token=[REDACTED]');
+  assert.equal(redactPlexSecrets('X-Plex-Token: actual-token'), 'X-Plex-Token: [REDACTED]');
 });

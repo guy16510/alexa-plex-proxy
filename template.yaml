@@ -44,7 +44,7 @@ Parameters:
 
 Globals:
   Function:
-    Runtime: nodejs24.x
+    Runtime: nodejs22.x
     Architectures: [arm64]
     MemorySize: 512
     Timeout: 30
@@ -79,7 +79,10 @@ Resources:
         CookiesConfig:
           CookieBehavior: none
         HeadersConfig:
-          HeaderBehavior: none
+          HeaderBehavior: whitelist
+          Headers:
+            - Range
+            - If-Range
         QueryStringsConfig:
           QueryStringBehavior: all
 
@@ -152,8 +155,12 @@ Resources:
           QUEUE_TTL_HOURS: !Ref QueueTtlHours
           PLEX_REQUEST_TIMEOUT_MS: '10000'
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref QueueTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+            Resource: !GetAtt QueueTable.Arn
       Events:
         AlexaSkillEvent:
           Type: AlexaSkill

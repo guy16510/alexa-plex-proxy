@@ -3,6 +3,7 @@ import { canHandleIntent, emptyResponse } from '../handler-utils.js';
 import { stopDirective } from '../playback.js';
 import { getApplicationId, isAudioPlayerRequest } from '../request-utils.js';
 import { config } from '../runtime.js';
+import { redactPlexSecrets } from '../plex-client.js';
 
 export const ValidateApplicationIdInterceptor = {
   process(handlerInput) {
@@ -75,7 +76,7 @@ export const ErrorHandler = {
   handle(handlerInput, error) {
     console.error('Alexa skill request failed', {
       name: error.name,
-      message: error.message,
+      message: redactPlexSecrets(error.message),
       requestType: Alexa.getRequestType(handlerInput.requestEnvelope)
     });
     if (isAudioPlayerRequest(handlerInput)) return emptyResponse(handlerInput);

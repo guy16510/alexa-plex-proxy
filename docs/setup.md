@@ -32,11 +32,11 @@ Do not commit the token or paste it into GitHub issues.
 
 ## 3. Find the Plex Remote Access origin
 
-Install dependencies and run the discovery script:
+Copy `.env.example` to `.env`, set `PLEX_TOKEN`, then install dependencies and run the discovery script:
 
 ```bash
-npm install
-PLEX_TOKEN='YOUR_TOKEN' npm run discover:plex
+npm ci
+npm run discover:plex
 ```
 
 The script lists the Plex servers and connections associated with the token. Use the recommended external direct HTTPS connection.
@@ -87,35 +87,10 @@ The skill can remain in development mode. It does not need certification or stor
 
 ## 5. Deploy AWS resources
 
-Build the project:
+Use `.env` as local deployment input only. It is ignored by Git; never commit it or token-bearing URLs. The automated deployment validates AWS identity, tests, the interaction model, SAM, Plex, and deployed resources without printing secret values:
 
 ```bash
-sam build
-```
-
-Deploy it:
-
-```bash
-sam deploy --guided
-```
-
-Suggested answers:
-
-```text
-Stack Name: alexa-plex-proxy
-AWS Region: us-east-1
-AlexaSkillId: amzn1.ask.skill.YOUR-SKILL-ID
-PlexOriginDomain: YOUR-PLEX-DOMAIN.plex.direct
-PlexOriginPort: 32400
-PlexToken: YOUR-PLEX-TOKEN
-PlexMusicLibrary: Music
-MaxQueueTracks: 150
-MaxAudioBitrate: 192
-TranscodePolicy: auto
-QueueTtlHours: 24
-Confirm changes before deploy: Y
-Allow SAM CLI IAM role creation: Y
-Save arguments to configuration file: Y
+npm run deploy
 ```
 
 The deployment creates CloudFront, which can take several minutes to finish provisioning.

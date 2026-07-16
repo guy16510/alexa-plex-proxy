@@ -78,10 +78,9 @@ The high-level steps are:
 7. Enable the Audio Player interface and test the skill.
 
 ```bash
-npm install
-PLEX_TOKEN='your-token' npm run discover:plex
-sam build
-sam deploy --guided
+npm ci
+npm run discover:plex
+npm run deploy
 ```
 
 ## Security tradeoff

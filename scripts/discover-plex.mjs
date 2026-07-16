@@ -1,8 +1,10 @@
 import { XMLParser } from 'fast-xml-parser';
+import { config as loadDotenv } from 'dotenv';
 
-const token = process.env.PLEX_TOKEN || process.argv[2];
+loadDotenv({ quiet: true });
+const token = process.env.PLEX_TOKEN;
 if (!token) {
-  console.error('Set PLEX_TOKEN or pass the token as the first argument.');
+  console.error('Set PLEX_TOKEN in the local .env file.');
   process.exit(1);
 }
 
@@ -54,15 +56,17 @@ for (const server of servers) {
       String(connection.local) === '1' ? 'local' : 'remote',
       String(connection.relay) === '1' ? 'relay' : 'direct'
     ];
-    console.log(`  ${labels.join(', ')}: ${connection.uri}`);
+    const connectionUrl = new URL(connection.uri);
+    console.log(`  ${labels.join(', ')}: ${connectionUrl.protocol}//${connectionUrl.host}`);
   }
 
   const recommended = externalHttps.find((connection) => Number(connection.port) >= 1024);
   if (recommended) {
     const url = new URL(recommended.uri);
-    console.log('\nRecommended SAM parameters:');
-    console.log(`  PlexOriginDomain=${url.hostname}`);
-    console.log(`  PlexOriginPort=${url.port || 443}`);
+    console.log('\nDeployment-ready configuration:');
+    console.log(`PLEX_ORIGIN_DOMAIN=${url.hostname}`);
+    console.log(`PLEX_ORIGIN_PORT=${url.port || 443}`);
+    console.log(`PLEX_SERVER_NAME=${server.name}`);
   } else {
     console.log('\nNo external direct HTTPS connection was found. Enable Plex Remote Access first.');
   }

@@ -10,6 +10,12 @@ const MEDIA_TYPES = {
 const DIRECT_CONTAINERS = new Set(['mp3', 'aac', 'm4a', 'mp4']);
 const DIRECT_CODECS = new Set(['mp3', 'aac']);
 
+export function redactPlexSecrets(value) {
+  return String(value ?? '')
+    .replace(/([?&]X-Plex-Token=)[^&#\s]+/gi, '$1[REDACTED]')
+    .replace(/(X-Plex-Token:\s*)[^\s,}]+/gi, '$1[REDACTED]');
+}
+
 function asArray(value) {
   if (value == null) return [];
   return Array.isArray(value) ? value : [value];
@@ -310,7 +316,7 @@ export class PlexClient {
         duration: track.durationMs || 0
       });
     } catch (error) {
-      console.warn('Plex timeline update failed', { state, message: error.message });
+      console.warn('Plex timeline update failed', { state, message: redactPlexSecrets(error.message) });
     }
   }
 }
