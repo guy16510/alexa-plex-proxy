@@ -1,0 +1,24 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: packages/gateway/Dockerfile
+    container_name: alexa-plex-proxy
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      PLEX_URL: ${PLEX_URL}
+      PLEX_TOKEN: ${PLEX_TOKEN}
+      PLEX_MUSIC_LIBRARY: ${PLEX_MUSIC_LIBRARY:-Music}
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY}
+      STREAM_SIGNING_SECRET: ${STREAM_SIGNING_SECRET}
+      STREAM_URL_MAX_TTL_SECONDS: ${STREAM_URL_MAX_TTL_SECONDS:-21600}
+      MAX_QUEUE_TRACKS: ${MAX_QUEUE_TRACKS:-150}
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

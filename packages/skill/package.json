@@ -1,0 +1,18 @@
+{
+  "name": "@alexa-plex-proxy/skill",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "node --check src/*.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1088.0",
+    "@aws-sdk/lib-dynamodb": "3.1088.0",
+    "ask-sdk-core": "2.14.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

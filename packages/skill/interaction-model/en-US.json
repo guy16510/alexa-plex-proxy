@@ -1,0 +1,102 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "plex music",
+      "intents": [
+        {
+          "name": "PlayAnyIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play {query}",
+            "play some {query}",
+            "put on {query}"
+          ]
+        },
+        {
+          "name": "PlaySongIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play the song {query}",
+            "play song {query}",
+            "play the track {query}"
+          ]
+        },
+        {
+          "name": "PlayArtistIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play songs by {query}",
+            "play music by {query}",
+            "play artist {query}"
+          ]
+        },
+        {
+          "name": "PlayAlbumIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play the album {query}",
+            "play album {query}"
+          ]
+        },
+        {
+          "name": "PlayPlaylistIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play playlist {query}",
+            "play the playlist {query}",
+            "play my {query} playlist"
+          ]
+        },
+        {
+          "name": "NowPlayingIntent",
+          "slots": [],
+          "samples": [
+            "what is playing",
+            "what song is this",
+            "who is this",
+            "what album is this"
+          ]
+        },
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.FallbackIntent", "samples": [] },
+        { "name": "AMAZON.HelpIntent", "samples": [] },
+        { "name": "AMAZON.LoopOffIntent", "samples": [] },
+        { "name": "AMAZON.LoopOnIntent", "samples": [] },
+        { "name": "AMAZON.NextIntent", "samples": [] },
+        { "name": "AMAZON.PauseIntent", "samples": [] },
+        { "name": "AMAZON.PreviousIntent", "samples": [] },
+        { "name": "AMAZON.ResumeIntent", "samples": [] },
+        { "name": "AMAZON.ShuffleOffIntent", "samples": [] },
+        { "name": "AMAZON.ShuffleOnIntent", "samples": [] },
+        { "name": "AMAZON.StartOverIntent", "samples": [] },
+        { "name": "AMAZON.StopIntent", "samples": [] }
+      ],
+      "types": []
+    }
+  }
+}
