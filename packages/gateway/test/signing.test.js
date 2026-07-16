@@ -55,3 +55,8 @@ test('rejects traversal and non-media paths', () => {
   assert.throws(() => normalizeMediaPath('/library/metadata/1'));
   assert.throws(() => normalizeMediaPath('/library/parts/1/../metadata/file.mp3'));
 });
+
+test('allows a rating-key-only transcode path but no arbitrary metadata path', () => {
+  assert.equal(normalizeMediaPath('/library/metadata/123/transcode'), '/library/metadata/123/transcode');
+  assert.throws(() => normalizeMediaPath('/library/metadata/123'));
+});

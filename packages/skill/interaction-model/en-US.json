@@ -14,7 +14,8 @@
           "samples": [
             "play {query}",
             "play some {query}",
-            "put on {query}"
+            "put on {query}",
+            "shuffle {query}"
           ]
         },
         {
@@ -42,7 +43,8 @@
           "samples": [
             "play songs by {query}",
             "play music by {query}",
-            "play artist {query}"
+            "play artist {query}",
+            "play the artist {query}"
           ]
         },
         {
@@ -69,7 +71,8 @@
           "samples": [
             "play playlist {query}",
             "play the playlist {query}",
-            "play my {query} playlist"
+            "play my {query} playlist",
+            "shuffle my {query} playlist"
           ]
         },
         {

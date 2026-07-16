@@ -9,7 +9,7 @@ export function buildAudioItem(queue, position, config, { expectedPreviousToken 
     token: tokenFor(queue, position),
     url: buildSignedStreamUrl({
       baseUrl: config.gatewayBaseUrl,
-      mediaPath: track.partPath,
+      mediaPath: track.streamPath ?? track.partPath,
       secret: config.streamSigningSecret,
       ttlSeconds: config.streamUrlTtlSeconds
     }),

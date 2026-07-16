@@ -13,6 +13,7 @@ export function createQueue(tracks, { shuffle = false } = {}) {
     shuffle,
     loop: false,
     enqueuedIndex: null,
+    retryCounts: {},
     updatedAt: new Date().toISOString()
   };
 }
@@ -93,4 +94,10 @@ export function parseToken(token) {
     position: parsedPosition,
     ratingKey: ratingKeyParts.join(':')
   };
+}
+
+export function tokenMatchesQueue(queue, token) {
+  const parsed = parseToken(token);
+  if (!parsed || parsed.queueId !== queue?.queueId) return false;
+  return getTrackAt(queue, parsed.position)?.ratingKey === parsed.ratingKey;
 }

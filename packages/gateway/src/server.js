@@ -14,6 +14,27 @@ const FORWARDED_RESPONSE_HEADERS = [
   'last-modified'
 ];
 
+function upstreamForMediaPath(mediaPath, plexUrl) {
+  if (mediaPath.endsWith('/transcode')) {
+    const ratingKey = mediaPath.match(/^\/library\/metadata\/(\d+)\/transcode$/)?.[1];
+    if (!ratingKey) throw new Error('Invalid transcode path');
+    const url = new URL('/video/:/transcode/universal/start', `${plexUrl}/`);
+    url.searchParams.set('path', `/library/metadata/${ratingKey}`);
+    url.searchParams.set('mediaIndex', '0');
+    url.searchParams.set('partIndex', '0');
+    url.searchParams.set('protocol', 'http');
+    url.searchParams.set('directPlay', '0');
+    url.searchParams.set('directStream', '0');
+    url.searchParams.set('audioBoost', '100');
+    return url;
+  }
+  return new URL(mediaPath, `${plexUrl}/`);
+}
+
+function log(event, fields = {}) {
+  console.info(JSON.stringify({ event, ...fields }));
+}
+
 export function createGatewayServer(config, { fetchImpl = fetch } = {}) {
   const plex = new PlexClient({
     baseUrl: config.plexUrl,
@@ -68,19 +89,24 @@ export function createGatewayServer(config, { fetchImpl = fetch } = {}) {
         ['GET', 'HEAD'].includes(req.method) &&
         requestUrl.pathname === '/v1/stream'
       ) {
-        const verification = verifyMediaSignature({
-          mediaPath: requestUrl.searchParams.get('path'),
-          expiresAt: requestUrl.searchParams.get('exp'),
-          signature: requestUrl.searchParams.get('sig'),
-          secret: config.streamSigningSecret,
-          maxTtlSeconds: config.streamUrlMaxTtlSeconds
-        });
+        let verification;
+        try {
+          verification = verifyMediaSignature({
+            mediaPath: requestUrl.searchParams.get('path'),
+            expiresAt: requestUrl.searchParams.get('exp'),
+            signature: requestUrl.searchParams.get('sig'),
+            secret: config.streamSigningSecret,
+            maxTtlSeconds: config.streamUrlMaxTtlSeconds
+          });
+        } catch {
+          return json(res, 403, { error: 'invalid_path' });
+        }
 
         if (!verification.ok) {
           return json(res, 403, { error: verification.reason });
         }
 
-        const upstreamUrl = new URL(verification.mediaPath, `${config.plexUrl}/`);
+        const upstreamUrl = upstreamForMediaPath(verification.mediaPath, config.plexUrl);
         const upstreamHeaders = {
           'X-Plex-Token': config.plexToken,
           'X-Plex-Product': 'Alexa Plex Proxy',
@@ -93,7 +119,9 @@ export function createGatewayServer(config, { fetchImpl = fetch } = {}) {
         }
 
         const controller = new AbortController();
-        res.on('close', () => controller.abort());
+        const abort = () => controller.abort();
+        req.on('aborted', abort);
+        res.on('close', abort);
 
         const upstream = await fetchImpl(upstreamUrl, {
           method: req.method,
@@ -104,6 +132,8 @@ export function createGatewayServer(config, { fetchImpl = fetch } = {}) {
             AbortSignal.timeout(30_000)
           ])
         });
+
+        log('stream_response', { status: upstream.status, method: req.method, mode: verification.mediaPath.endsWith('/transcode') ? 'transcode' : 'direct' });
 
         const headers = {
           'Cache-Control': 'private, no-store',
@@ -119,13 +149,13 @@ export function createGatewayServer(config, { fetchImpl = fetch } = {}) {
           return res.end();
         }
 
-        Readable.fromWeb(upstream.body).pipe(res);
+        Readable.fromWeb(upstream.body).on('error', abort).pipe(res);
         return;
       }
 
       return json(res, 404, { error: 'not_found' });
     } catch (error) {
-      console.error('Gateway request failed', error);
+      log('request_failed', { name: error?.name, statusCode: error?.statusCode ?? 500 });
       if (!res.headersSent) {
         return json(res, error.statusCode ?? 500, {
           error: error.statusCode ? error.message : 'internal_error'

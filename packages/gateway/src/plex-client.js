@@ -6,6 +6,8 @@ const MEDIA_TYPES = {
   album: 9,
   track: 10
 };
+const ALEXA_DIRECT_CONTAINERS = new Set(['mp3', 'aac', 'm4a', 'mp4']);
+const ALEXA_DIRECT_CODECS = new Set(['mp3', 'aac']);
 
 function asArray(value) {
   if (value == null) return [];
@@ -160,15 +162,22 @@ export class PlexClient {
     const { media, part } = selected;
     const durationMs = Number.parseInt(item.duration ?? part.duration ?? media.duration ?? '0', 10) || 0;
 
+    const container = String(part.container || media.container || '').toLowerCase() || null;
+    const audioCodec = String(media.audioCodec || '').toLowerCase() || null;
+    const directPlayable = ALEXA_DIRECT_CONTAINERS.has(container)
+      && ALEXA_DIRECT_CODECS.has(audioCodec);
+    const ratingKey = String(item.ratingKey ?? item.key ?? part.key);
     return {
-      ratingKey: String(item.ratingKey ?? item.key ?? part.key),
+      ratingKey,
       title: item.title || 'Unknown track',
       artist: item.grandparentTitle || item.originalTitle || item.artist || 'Unknown artist',
       album: item.parentTitle || item.album || 'Unknown album',
       durationMs,
       partPath: part.key,
-      container: part.container || media.container || null,
-      audioCodec: media.audioCodec || null
+      streamPath: directPlayable ? part.key : `/library/metadata/${ratingKey}/transcode`,
+      streamMode: directPlayable ? 'direct' : 'transcode',
+      container,
+      audioCodec
     };
   }
 

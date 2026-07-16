@@ -13,16 +13,14 @@ export function normalizeMediaPath(input) {
   const parsed = new URL(decoded, 'http://local.invalid');
   const pathname = parsed.pathname;
 
-  if (!pathname.startsWith('/library/parts/')) {
-    throw new Error('Only Plex library part paths are allowed');
+  const isPartPath = pathname.startsWith('/library/parts/') && /\/file(?:\.[a-z0-9]+)?$/i.test(pathname);
+  const isTranscodePath = /^\/library\/metadata\/\d+\/transcode$/.test(pathname);
+  if (!isPartPath && !isTranscodePath) {
+    throw new Error('Only Plex audio part and transcode paths are allowed');
   }
   if (pathname.includes('\\') || pathname.split('/').some((segment) => segment === '..' || segment === '.')) {
     throw new Error('Invalid media path');
   }
-  if (!/\/file(?:\.[a-z0-9]+)?$/i.test(pathname)) {
-    throw new Error('Media path must point to a Plex file endpoint');
-  }
-
   return pathname;
 }
 

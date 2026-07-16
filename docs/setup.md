@@ -24,7 +24,7 @@ cp .env.example .env
 Set at least:
 
 ```dotenv
-PLEX_URL=http://YOUR-PLEX-IP:32400
+PLEX_URL=http://192.168.2.15:32400
 PLEX_TOKEN=YOUR_PLEX_TOKEN
 PLEX_MUSIC_LIBRARY=Music
 GATEWAY_API_KEY=LONG_RANDOM_VALUE
@@ -127,6 +127,12 @@ Use region `us-east-1` unless you have a reason not to. Alexa Lambda endpoints s
 
 After deployment, copy the `SkillFunctionArn` output.
 
+To remove all AWS resources when you no longer need the skill:
+
+```bash
+npm run destroy:aws
+```
+
 ## 6. Connect Alexa to Lambda
 
 In the Alexa Developer Console:
@@ -167,7 +173,7 @@ Check:
 - The hostname is reachable from a cellular connection.
 - TLS is valid and the stream is served through port 443.
 - Your reverse proxy is not buffering the response.
-- The source track is MP3 or AAC.
+- Plex transcoding is enabled if the source is not MP3/AAC.
 - The gateway log does not show `invalid_signature`, `expired`, or Plex errors.
 
 ### Gateway cannot reach Plex

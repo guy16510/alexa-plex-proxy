@@ -9,6 +9,7 @@ import {
   moveTo,
   parseToken,
   setShuffle
+  ,tokenMatchesQueue
 } from './queue.js';
 import { QueueStore } from './queue-store.js';
 import { playDirective, stopDirective } from './playback.js';
@@ -317,7 +318,7 @@ const PlaybackStartedHandler = {
     const userId = getUserId(handlerInput);
     const queue = await queueStore.get(userId);
     const parsed = parseToken(handlerInput.requestEnvelope.request.token);
-    if (queue && parsed?.queueId === queue.queueId && moveTo(queue, parsed.position)) {
+    if (queue && tokenMatchesQueue(queue, handlerInput.requestEnvelope.request.token) && moveTo(queue, parsed.position)) {
       queue.offsetMs = handlerInput.requestEnvelope.request.offsetInMilliseconds ?? 0;
       await queueStore.put(userId, queue);
     }
@@ -333,7 +334,7 @@ const PlaybackStoppedHandler = {
     const userId = getUserId(handlerInput);
     const queue = await queueStore.get(userId);
     const parsed = parseToken(handlerInput.requestEnvelope.request.token);
-    if (queue && parsed?.queueId === queue.queueId) {
+    if (queue && tokenMatchesQueue(queue, handlerInput.requestEnvelope.request.token)) {
       queue.index = parsed.position;
       queue.offsetMs = handlerInput.requestEnvelope.request.offsetInMilliseconds ?? 0;
       queue.enqueuedIndex = null;
@@ -353,7 +354,7 @@ const PlaybackNearlyFinishedHandler = {
     const currentToken = handlerInput.requestEnvelope.request.token;
     const parsed = parseToken(currentToken);
 
-    if (!queue || parsed?.queueId !== queue.queueId) return emptyResponse(handlerInput);
+    if (!queue || !tokenMatchesQueue(queue, currentToken)) return emptyResponse(handlerInput);
     if (queue.enqueuedIndex != null) return emptyResponse(handlerInput);
 
     const nextIndex = getNextIndex(queue, parsed.position);
@@ -380,8 +381,31 @@ const PlaybackFailedHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'AudioPlayer.PlaybackFailed';
   },
-  handle(handlerInput) {
-    console.error('Alexa playback failed', handlerInput.requestEnvelope.request.error);
+  async handle(handlerInput) {
+    const userId = getUserId(handlerInput);
+    const queue = await queueStore.get(userId);
+    const token = handlerInput.requestEnvelope.request.token;
+    if (!queue || !tokenMatchesQueue(queue, token)) return emptyResponse(handlerInput);
+
+    const attempts = queue.retryCounts?.[token] ?? 0;
+    queue.retryCounts ??= {};
+    if (attempts < 1) {
+      queue.retryCounts[token] = attempts + 1;
+      await queueStore.put(userId, queue);
+      return handlerInput.responseBuilder
+        .addDirective(playDirective(queue, queue.index, config))
+        .getResponse();
+    }
+
+    const nextIndex = getNextIndex(queue);
+    if (nextIndex != null) {
+      moveTo(queue, nextIndex);
+      await queueStore.put(userId, queue);
+      return handlerInput.responseBuilder
+        .addDirective(playDirective(queue, queue.index, config))
+        .getResponse();
+    }
+    await queueStore.put(userId, queue);
     return emptyResponse(handlerInput);
   }
 };

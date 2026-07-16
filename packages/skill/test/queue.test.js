@@ -8,6 +8,7 @@ import {
   moveTo,
   parseToken,
   setShuffle,
+  tokenMatchesQueue,
   tokenFor
 } from '../src/queue.js';
 
@@ -36,6 +37,8 @@ test('creates parseable queue-scoped tokens', () => {
   assert.equal(parsed.queueId, queue.queueId);
   assert.equal(parsed.position, 1);
   assert.equal(parsed.ratingKey, '2');
+  assert.equal(tokenMatchesQueue(queue, token), true);
+  assert.equal(tokenMatchesQueue(queue, `${queue.queueId}:1:wrong`), false);
 });
 
 test('shuffle keeps the current track active', () => {

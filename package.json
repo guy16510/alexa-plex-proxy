@@ -9,7 +9,11 @@
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "start:gateway": "npm run start --workspace @alexa-plex-proxy/gateway",
-    "check": "npm run check --workspaces --if-present"
+    "check": "npm run check --workspaces --if-present",
+    "build:gateway": "docker build -f packages/gateway/Dockerfile -t alexa-plex-proxy:local .",
+    "build:lambda": "sam build --template-file packages/skill/template.yaml",
+    "deploy:lambda": "sam deploy --template-file packages/skill/template.yaml --guided",
+    "destroy:aws": "sam delete --template-file packages/skill/template.yaml"
   },
   "engines": {
     "node": ">=20"

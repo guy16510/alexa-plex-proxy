@@ -40,11 +40,14 @@ Resources:
     Properties:
       CodeUri: .
       Handler: src/index.handler
+      FunctionName: !Sub '${AWS::StackName}-skill'
       Runtime: nodejs20.x
       Architectures:
         - arm64
       MemorySize: 256
       Timeout: 10
+      LoggingConfig:
+        LogFormat: JSON
       Environment:
         Variables:
           ALEXA_SKILL_ID: !Ref AlexaSkillId
@@ -62,6 +65,12 @@ Resources:
           Type: AlexaSkill
           Properties:
             SkillId: !Ref AlexaSkillId
+
+  SkillFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-skill'
+      RetentionInDays: 30
 
 Outputs:
   SkillFunctionArn:

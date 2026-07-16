@@ -27,6 +27,7 @@ The Lambda stores only queue metadata in DynamoDB. Plex search and streaming hap
 - Shuffle and loop
 - Persistent queues across Lambda cold starts
 - HTTP byte-range forwarding for seeking and reliable Echo playback
+- Direct MP3/AAC playback, with Plex-managed audio transcoding for other source formats such as FLAC
 - Private development-mode Alexa skill, no publication required
 
 ## Voice examples
@@ -104,9 +105,21 @@ openssl rand -base64 48
 openssl rand -base64 48
 ```
 
-## Current limitation
+## Audio formats
 
-The first version directly streams the file selected by Plex. MP3 and AAC are the safest formats for Alexa. FLAC and other unsupported formats need a Plex or ffmpeg transcoding path, which is not implemented yet.
+MP3 and AAC in MP3, M4A, AAC, or MP4 containers are proxied directly. Other source formats (including FLAC) are requested through Plex's universal transcode endpoint; Plex performs the conversion and the gateway still proxies the response, so its token is never exposed. Ensure the Plex server has transcoding enabled and enough CPU capacity for the selected format.
+
+## Common commands
+
+```bash
+npm install
+npm test
+npm run check
+npm run build:gateway
+npm run build:lambda
+npm run deploy:lambda
+npm run destroy:aws
+```
 
 ## Prior art
 

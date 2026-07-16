@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const PART_PATH_PREFIX = '/library/parts/';
+const TRANSCODE_PATH_PREFIX = '/library/metadata/';
 
 export function normalizeMediaPath(input) {
   if (typeof input !== 'string' || input.length === 0 || input.length > 2048) {
@@ -24,16 +25,15 @@ export function normalizeMediaPath(input) {
   const parsed = new URL(decoded, 'http://local.invalid');
   const pathname = parsed.pathname;
 
-  if (!pathname.startsWith(PART_PATH_PREFIX)) {
-    throw new Error('Only Plex library part paths are allowed');
+  const isPartPath = pathname.startsWith(PART_PATH_PREFIX)
+    && /\/file(?:\.[a-z0-9]+)?$/i.test(pathname);
+  const isTranscodePath = new RegExp(`^${TRANSCODE_PATH_PREFIX}(\\d+)/transcode$`).test(pathname);
+  if (!isPartPath && !isTranscodePath) {
+    throw new Error('Only Plex audio part and transcode paths are allowed');
   }
 
   if (pathname.split('/').some((segment) => segment === '..' || segment === '.')) {
     throw new Error('Path traversal is not allowed');
-  }
-
-  if (!/\/file(?:\.[a-z0-9]+)?$/i.test(pathname)) {
-    throw new Error('Media path must point to a Plex file endpoint');
   }
 
   return pathname;
