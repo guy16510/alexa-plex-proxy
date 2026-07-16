@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>alexa-plex-proxy</Name>
+  <Repository>ghcr.io/guy16510/alexa-plex-proxy:latest</Repository>
+  <Registry>https://ghcr.io/guy16510/alexa-plex-proxy</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Project>https://github.com/guy16510/alexa-plex-proxy</Project>
+  <Overview>Private Alexa music gateway for Plex. Searches your local Plex music library and serves short-lived signed audio streams to an Alexa custom skill without exposing the Plex token to Alexa or AWS.</Overview>
+  <Category>MediaApp:Music</Category>
+  <WebUI>http://[IP]:[PORT:3000]/healthz</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/guy16510/alexa-plex-proxy/main/deploy/unraid/alexa-plex-proxy.xml</TemplateURL>
+  <Icon/>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>If the GHCR package is private, authenticate Unraid to ghcr.io with a GitHub classic PAT that has read:packages. The gateway must also be exposed through a trusted HTTPS reverse proxy for Alexa playback.</Requires>
+  <Config Name="Gateway port" Target="3000" Default="3000" Mode="tcp" Description="Local HTTP port for the Plex gateway. Route your public HTTPS hostname to this port through a reverse proxy." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="Plex server URL" Target="PLEX_URL" Default="http://192.168.1.20:32400" Mode="" Description="Local URL for Plex Media Server. Replace the example IP with the address reachable from this container." Type="Variable" Display="always" Required="true" Mask="false">http://192.168.1.20:32400</Config>
+  <Config Name="Plex token" Target="PLEX_TOKEN" Default="" Mode="" Description="Authentication token for your Plex account. This remains inside the gateway container." Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="Plex music library" Target="PLEX_MUSIC_LIBRARY" Default="Music" Mode="" Description="Exact name of the Plex music library to search." Type="Variable" Display="always" Required="true" Mask="false">Music</Config>
+  <Config Name="Gateway API key" Target="GATEWAY_API_KEY" Default="" Mode="" Description="Long random bearer token shared with the Alexa Lambda. Generate with: openssl rand -base64 48" Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="Stream signing secret" Target="STREAM_SIGNING_SECRET" Default="" Mode="" Description="Different long random secret used to sign expiring audio URLs. Generate with: openssl rand -base64 48" Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="Maximum stream URL lifetime" Target="STREAM_URL_MAX_TTL_SECONDS" Default="21600" Mode="" Description="Maximum accepted lifetime of a signed stream URL, in seconds." Type="Variable" Display="advanced-hide" Required="true" Mask="false">21600</Config>
+  <Config Name="Maximum queue tracks" Target="MAX_QUEUE_TRACKS" Default="150" Mode="" Description="Maximum tracks returned for an artist, album, or playlist. The application caps this at 500." Type="Variable" Display="advanced-hide" Required="true" Mask="false">150</Config>
+  <Config Name="Container port" Target="PORT" Default="3000" Mode="" Description="Internal Node.js listening port. Keep this aligned with the gateway port mapping." Type="Variable" Display="advanced-hide" Required="true" Mask="false">3000</Config>
+  <Config Name="Node environment" Target="NODE_ENV" Default="production" Mode="" Description="Run the gateway in production mode." Type="Variable" Display="advanced-hide" Required="true" Mask="false">production</Config>
+</Container>
