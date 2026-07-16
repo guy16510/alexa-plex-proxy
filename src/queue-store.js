@@ -1,10 +1,13 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, PutCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 
 export class QueueStore {
   constructor({ tableName, client } = {}) {
+    if (!tableName) throw new Error('QueueStore requires a table name');
     this.tableName = tableName;
-    this.client = client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
+    this.client = client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}), {
+      marshallOptions: { removeUndefinedValues: true }
+    });
   }
 
   async get(userId) {
@@ -17,22 +20,15 @@ export class QueueStore {
   }
 
   async put(userId, queue) {
-    const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+    queue.updatedAt = Date.now();
     await this.client.send(new PutCommand({
       TableName: this.tableName,
       Item: {
         userId,
-        queue,
-        expiresAt
+        expiresAt: queue.expiresAt,
+        queue
       }
     }));
     return queue;
-  }
-
-  async delete(userId) {
-    await this.client.send(new DeleteCommand({
-      TableName: this.tableName,
-      Key: { userId }
-    }));
   }
 }

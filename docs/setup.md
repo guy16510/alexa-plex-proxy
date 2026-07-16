@@ -1,195 +1,289 @@
-# Deployment guide
+# Complete setup
 
-## 1. Create secrets
+This deployment is entirely serverless. Nothing is installed on Unraid, and you do not need a custom domain or home reverse proxy.
 
-Generate two different secrets:
+## 1. Prerequisites
 
-```bash
-openssl rand -base64 48
-openssl rand -base64 48
-```
+Install locally:
 
-Use one as `GATEWAY_API_KEY` and the other as `STREAM_SIGNING_SECRET`.
+- Node.js 22 or newer
+- AWS CLI
+- AWS SAM CLI
 
-## 2. Configure the gateway on Unraid
+You also need:
 
-Clone the repository into an Unraid app-data or project directory:
+- An AWS account
+- An Amazon Developer account
+- Plex Media Server with a music library
+- Plex Remote Access enabled
 
-```bash
-git clone https://github.com/guy16510/alexa-plex-proxy.git
-cd alexa-plex-proxy
-cp .env.example .env
-```
+Use an AWS region supported by Alexa custom-skill Lambda endpoints. For a North American skill, `us-east-1` is the normal choice.
 
-Set at least:
+## 2. Find your Plex token
 
-```dotenv
-PLEX_URL=http://192.168.2.15:32400
-PLEX_TOKEN=YOUR_PLEX_TOKEN
-PLEX_MUSIC_LIBRARY=Music
-GATEWAY_API_KEY=LONG_RANDOM_VALUE
-STREAM_SIGNING_SECRET=DIFFERENT_LONG_RANDOM_VALUE
-```
+In Plex Web:
 
-Start it:
+1. Open a media item.
+2. Select **Get Info**.
+3. Select **View XML**.
+4. Find `X-Plex-Token` in the URL.
 
-```bash
-docker compose up -d --build
-```
+Do not commit the token or paste it into GitHub issues.
 
-Verify local connectivity:
+## 3. Find the Plex Remote Access origin
+
+Install dependencies and run the discovery script:
 
 ```bash
-curl http://UNRAID-IP:3000/healthz
-curl -H "Authorization: Bearer YOUR_GATEWAY_API_KEY" \
-  http://UNRAID-IP:3000/readyz
+npm install
+PLEX_TOKEN='YOUR_TOKEN' npm run discover:plex
 ```
 
-The ready check confirms that the container can reach Plex and authenticate.
+The script lists the Plex servers and connections associated with the token. Use the recommended external direct HTTPS connection.
 
-## 3. Put the gateway behind HTTPS
-
-Create a hostname such as:
+Example output:
 
 ```text
-music.yourdomain.com
+Recommended SAM parameters:
+  PlexOriginDomain=123-45-67-89.abcdef0123456789.plex.direct
+  PlexOriginPort=32400
 ```
 
-Route HTTPS port 443 to the gateway's HTTP port 3000 using Nginx Proxy Manager, Caddy, Traefik, or your existing reverse proxy.
+The domain must be entered without `https://` and without the port.
 
-Required behavior:
-
-- Valid publicly trusted TLS certificate
-- HTTP/1.1 support
-- Streaming responses without response buffering
-- Forward `Range` and `If-Range` headers
-- Do not cache `/v1/stream`
-- Do not expose Plex port 32400 through this hostname
-
-### Nginx example
-
-```nginx
-location / {
-    proxy_pass http://UNRAID-IP:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto https;
-    proxy_set_header Range $http_range;
-    proxy_set_header If-Range $http_if_range;
-    proxy_request_buffering off;
-    proxy_buffering off;
-}
-```
-
-Verify externally, not only from your home network:
+You can also inspect the resource endpoint manually:
 
 ```bash
-curl https://music.yourdomain.com/healthz
+curl -H "X-Plex-Token: YOUR_TOKEN" \
+  'https://plex.tv/api/resources?includeHttps=1&includeRelay=1'
 ```
 
-## 4. Create the Alexa custom skill
+If no external direct HTTPS connection appears, fix Plex Remote Access before proceeding.
 
-In the Alexa Developer Console:
+### Dynamic public IP warning
 
-1. Create a new skill.
-2. Choose **Custom** as the model.
-3. Choose **Provision your own** for the backend.
-4. Use English (US).
-5. Open **Interaction Model**, then **JSON Editor**.
-6. Paste `packages/skill/interaction-model/en-US.json`.
-7. Open **Interfaces** and enable **Audio Player**.
-8. Build the model.
-9. Copy the Skill ID.
+A `plex.direct` hostname can contain your public IP. If your public IP changes and Plex advertises a new hostname, rerun discovery and update the SAM stack with the new `PlexOriginDomain`.
 
-Leave the skill in development mode. It does not need store publication for Echo devices on the same Amazon account.
+## 4. Create the private Alexa skill
 
-## 5. Deploy the Lambda and DynamoDB table
+Open the Alexa Developer Console and create a skill:
 
-Install the AWS SAM CLI and authenticate the AWS CLI, then:
+- Skill name: `Plex Music`
+- Primary locale: English (US)
+- Model: Custom
+- Hosting: Provision your own
+
+After creation:
+
+1. Copy the Skill ID from the developer console.
+2. Open **Interaction Model**, then **JSON Editor**.
+3. Paste the contents of `interaction-model/en-US.json`.
+4. Save and build the model.
+5. Open **Interfaces**.
+6. Enable **Audio Player**.
+7. Save the interface settings.
+
+The skill can remain in development mode. It does not need certification or store publication for Echo devices registered to the same Amazon account.
+
+## 5. Deploy AWS resources
+
+Build the project:
 
 ```bash
-cd packages/skill
-npm install
 sam build
+```
+
+Deploy it:
+
+```bash
 sam deploy --guided
 ```
 
-Provide these parameter values:
+Suggested answers:
 
-- `AlexaSkillId`: the Skill ID from the developer console
-- `GatewayBaseUrl`: `https://music.yourdomain.com`
-- `GatewayApiKey`: same value used by the gateway
-- `StreamSigningSecret`: same signing value used by the gateway
-- `MaxQueueTracks`: `150`
-- `StreamUrlTtlSeconds`: `900`
-
-Use region `us-east-1` unless you have a reason not to. Alexa Lambda endpoints support a limited set of regions, and the North America endpoint commonly uses `us-east-1`.
-
-After deployment, copy the `SkillFunctionArn` output.
-
-To remove all AWS resources when you no longer need the skill:
-
-```bash
-npm run destroy:aws
+```text
+Stack Name: alexa-plex-proxy
+AWS Region: us-east-1
+AlexaSkillId: amzn1.ask.skill.YOUR-SKILL-ID
+PlexOriginDomain: YOUR-PLEX-DOMAIN.plex.direct
+PlexOriginPort: 32400
+PlexToken: YOUR-PLEX-TOKEN
+PlexMusicLibrary: Music
+MaxQueueTracks: 150
+MaxAudioBitrate: 192
+TranscodePolicy: auto
+QueueTtlHours: 24
+Confirm changes before deploy: Y
+Allow SAM CLI IAM role creation: Y
+Save arguments to configuration file: Y
 ```
 
+The deployment creates CloudFront, which can take several minutes to finish provisioning.
+
+`PlexToken` is marked `NoEcho`, so SAM and CloudFormation mask it in parameter displays. It is still available to anyone with permission to inspect the Lambda configuration, which is expected for this private deployment.
+
 ## 6. Connect Alexa to Lambda
+
+After deployment, SAM prints `SkillFunctionArn`.
 
 In the Alexa Developer Console:
 
 1. Open **Endpoint**.
 2. Select **AWS Lambda ARN**.
-3. Paste the deployed ARN into the Default Region field.
+3. Paste `SkillFunctionArn` into the Default Region field.
 4. Save endpoints.
-5. Rebuild the model if prompted.
+5. Rebuild the interaction model if prompted.
 
-The SAM template grants invocation only to the supplied Alexa Skill ID.
+The SAM template grants invocation permission only to the Skill ID supplied during deployment.
 
-## 7. Test
+## 7. Test Plex connectivity
 
-In the Alexa developer simulator or on an Echo associated with your account:
+Lambda queries your public Plex Remote Access endpoint directly. Before testing Alexa, verify the endpoint from outside your home network:
+
+```bash
+curl -H "X-Plex-Token: YOUR_TOKEN" \
+  'https://YOUR-PLEX-DOMAIN.plex.direct:32400/identity'
+```
+
+You should receive Plex XML. A timeout, certificate error, or unauthorized response must be fixed before Lambda can work.
+
+## 8. Test the skill
+
+Use the Alexa simulator with device testing enabled, or use an Echo on the same Amazon account:
 
 ```text
 Alexa, open Plex Music
 Alexa, ask Plex Music to play songs by Queen
 Alexa, ask Plex Music to play the album The Wall
+Alexa, ask Plex Music to play the song Everlong
+Alexa, ask Plex Music to play my Road Trip playlist
 ```
 
 Then test:
 
 ```text
 Alexa, next
+Alexa, previous
 Alexa, pause
 Alexa, resume
 Alexa, shuffle
+Alexa, loop
+Alexa, ask Plex Music what's playing
 ```
+
+## 9. How streaming works
+
+Lambda never carries the audio bytes.
+
+For compatible MP3 and AAC tracks, Lambda gives Alexa a URL like:
+
+```text
+https://CLOUDFRONT-DOMAIN/library/parts/.../file.mp3?X-Plex-Token=...
+```
+
+For FLAC and other unsupported formats, Lambda gives Alexa a Plex transcode URL through the same CloudFront distribution:
+
+```text
+https://CLOUDFRONT-DOMAIN/music/:/transcode/universal/start.mp3?...
+```
+
+CloudFront accepts the Alexa request on trusted HTTPS port 443, forwards query parameters and range requests to Plex, and connects to the Plex origin on port 32400.
+
+Caching is disabled so Plex authenticates each request and serves the requested byte range or transcode session directly.
+
+## 10. Configuration options
+
+### `TranscodePolicy`
+
+- `auto`, direct-play compatible MP3/AAC and transcode everything else
+- `always`, transcode every track to MP3
+- `never`, never request a Plex transcode
+
+Use `auto` unless troubleshooting indicates otherwise.
+
+### `MaxAudioBitrate`
+
+The default is 192 kbps. Alexa accepts audio streams from 16 through 384 kbps. Lower the setting if your upstream internet connection or Plex server struggles.
+
+### `MaxQueueTracks`
+
+The default is 150 and the maximum is 500. Very large artist queues increase DynamoDB item size and Plex query time.
 
 ## Troubleshooting
 
-### Search works but audio does not start
+### Alexa says Plex Music had an error
 
-Check:
+Check Lambda logs:
 
-- The hostname is reachable from a cellular connection.
-- TLS is valid and the stream is served through port 443.
-- Your reverse proxy is not buffering the response.
-- Plex transcoding is enabled if the source is not MP3/AAC.
-- The gateway log does not show `invalid_signature`, `expired`, or Plex errors.
+```bash
+sam logs --stack-name alexa-plex-proxy \
+  --name SkillFunction \
+  --region us-east-1 \
+  --tail
+```
 
-### Gateway cannot reach Plex
+Common causes:
 
-Use the local Plex address in `PLEX_URL`, not the public hostname. Confirm that the Docker container can route to the Plex host.
+- Wrong Plex token
+- Wrong music library name
+- Plex Remote Access unavailable
+- Wrong Plex origin hostname or port
+- Skill ID mismatch
 
-### Alexa says the skill had an error
+### Search works but audio does not play
 
-Check CloudWatch logs for the Lambda and confirm all environment variables were deployed. `ALEXA_SKILL_ID` must exactly match the developer console Skill ID.
+Check the CloudFront output:
 
-### Alexa chooses Amazon Music instead
+```bash
+aws cloudformation describe-stacks \
+  --stack-name alexa-plex-proxy \
+  --query "Stacks[0].Outputs"
+```
 
-Use the full custom-skill invocation:
+Then test a known Plex media path through CloudFront. Do not paste a token-bearing test URL into public logs or issues.
+
+Also check:
+
+- CloudFront distribution status is `Deployed`
+- Plex origin certificate matches the configured origin hostname
+- Plex Remote Access port is reachable externally
+- The track can be transcoded when using FLAC
+
+### MP3 works but FLAC fails
+
+Set `TranscodePolicy` to `always` temporarily and redeploy. Check Plex Dashboard to see whether a transcode session starts. Confirm the Plex server has working transcoder permissions and free temporary space.
+
+### Playback stops after one song
+
+Check Lambda logs for `AudioPlayer.PlaybackNearlyFinished`. Confirm the Audio Player interface is enabled in the Alexa Developer Console and the queue item remains in DynamoDB.
+
+### Alexa routes the request to Amazon Music
+
+Use the full private-skill invocation:
 
 ```text
 Alexa, ask Plex Music to play Queen
 ```
 
-`Alexa, play Queen` is normally routed to a built-in music provider, not a private custom skill.
+A custom skill cannot claim the global `Alexa, play Queen` provider command.
+
+## Updating
+
+After changing code:
+
+```bash
+npm test
+npm run check
+sam build
+sam deploy
+```
+
+After changing only the Alexa interaction model, paste the updated JSON into the developer console and rebuild the model.
+
+## Removing everything
+
+```bash
+sam delete --stack-name alexa-plex-proxy --region us-east-1
+```
+
+CloudFront distributions take time to disable and delete. SAM handles the dependency order.

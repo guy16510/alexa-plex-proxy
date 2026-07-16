@@ -1,21 +1,22 @@
 {
   "name": "alexa-plex-proxy",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "packages/*"
-  ],
+  "description": "Private serverless Alexa skill for streaming music from Plex",
   "scripts": {
-    "test": "npm run test --workspaces --if-present",
-    "start:gateway": "npm run start --workspace @alexa-plex-proxy/gateway",
-    "check": "npm run check --workspaces --if-present",
-    "build:gateway": "docker build -f packages/gateway/Dockerfile -t alexa-plex-proxy:local .",
-    "build:lambda": "sam build --template-file packages/skill/template.yaml",
-    "deploy:lambda": "sam deploy --template-file packages/skill/template.yaml --guided",
-    "destroy:aws": "sam delete --template-file packages/skill/template.yaml"
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js",
+    "check": "node --check src/*.js && node --check scripts/*.mjs && node -e \"JSON.parse(require('node:fs').readFileSync('interaction-model/en-US.json','utf8'))\"",
+    "discover:plex": "node scripts/discover-plex.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.850.0",
+    "@aws-sdk/lib-dynamodb": "^3.850.0",
+    "ask-sdk-core": "^2.14.0",
+    "fast-xml-parser": "^5.2.5"
   }
 }

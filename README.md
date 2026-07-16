@@ -1,36 +1,41 @@
 # Alexa Plex Proxy
 
-A private Alexa custom skill that plays music from a local Plex Media Server without exposing the Plex token to Alexa or AWS.
+A private, fully serverless Alexa custom skill for playing music from Plex.
 
-The project is intentionally split into two small services:
+There is no Unraid application, Docker container, reverse proxy, custom domain, or always-on middleware to manage.
 
 ```text
-Alexa device
-    |
-    v
-AWS Lambda custom skill
-    | authenticated catalog requests
-    v
-HTTPS gateway on Unraid
-    | local Plex API and audio requests
-    v
-Plex Media Server
+Alexa voice request
+        |
+        v
+AWS Lambda  -----> Plex API on your existing remote-access endpoint
+        |
+        v
+DynamoDB queue state
+
+Alexa audio request
+        |
+        v
+CloudFront HTTPS :443 -----> Plex Remote Access HTTPS :32400
 ```
 
-The Lambda stores only queue metadata in DynamoDB. Plex search and streaming happen through the gateway running beside Plex. Alexa receives short-lived HMAC-signed stream URLs, never the long-lived Plex token.
+The architecture follows the current working pattern used by `mwstowe/plexMusicPlayer`, reimplemented in Node.js. Lambda searches Plex and manages playback. CloudFront gives Alexa the required trusted HTTPS endpoint on port 443 and connects directly to the Plex endpoint you already expose.
 
 ## What works
 
 - Play a song, artist, album, or Plex audio playlist
-- Generic search, for example `Alexa, ask Plex Music to play Queen`
-- Pause, resume, next, previous, start over
-- Shuffle and loop
-- Persistent queues across Lambda cold starts
-- HTTP byte-range forwarding for seeking and reliable Echo playback
-- Direct MP3/AAC playback, with Plex-managed audio transcoding for other source formats such as FLAC
-- Private development-mode Alexa skill, no publication required
+- Generic requests such as `Alexa, ask Plex Music to play Queen`
+- Shuffle an artist or playlist
+- Pause, resume, next, previous, start over, shuffle, and loop
+- Continuous queue playback through `AudioPlayer.PlaybackNearlyFinished`
+- DynamoDB-backed queue and resume position across Lambda cold starts
+- Album artwork on supported Alexa devices
+- Plex Now Playing timeline updates
+- Direct playback for compatible MP3 and AAC files
+- Plex MP3 transcoding for FLAC and other unsupported formats
+- Private development-mode skill, no Alexa Store publication required
 
-## Voice examples
+## What you say
 
 ```text
 Alexa, ask Plex Music to play Queen
@@ -38,98 +43,93 @@ Alexa, ask Plex Music to play songs by Queen
 Alexa, ask Plex Music to play the album The Wall
 Alexa, ask Plex Music to play the song Everlong
 Alexa, ask Plex Music to play my Road Trip playlist
+Alexa, ask Plex Music to shuffle songs by Queen
 Alexa, next
 Alexa, pause
 Alexa, resume
 ```
 
-A custom skill generally requires the invocation phrase, `ask Plex Music`. This is not a first-party Alexa music provider integration.
+A private custom skill still needs the invocation phrase, usually `ask Plex Music`. It does not replace a first-party provider command such as `Alexa, play Queen`.
 
-## Requirements
+## AWS resources
 
-- Node.js 20 or newer
-- Plex Media Server with a music library
-- Unraid or another always-on Docker host
-- A public HTTPS hostname on port 443 routed to the gateway
-- Amazon Developer account
-- AWS account for Lambda and DynamoDB
+The included SAM template creates:
 
-Your existing domain is useful for the public stream endpoint. The skill itself is hosted by Lambda and does not need to run from your domain.
+- One Node.js 24 Lambda function
+- One on-demand DynamoDB table with TTL
+- One CloudFront distribution
+- CloudWatch logs retained for 14 days
+- The Alexa invocation permission restricted to your Skill ID
 
-## Repository layout
+Your Plex server remains where it is. CloudFront uses its existing public Plex Remote Access hostname as a custom origin.
 
-```text
-packages/gateway     Unraid-hosted Plex search and audio proxy
-packages/skill       Alexa Lambda, interaction model, and SAM template
-docs/setup.md        Complete deployment walkthrough
-docker-compose.yml   Gateway deployment
-```
+## Quick start
 
-## Local development
+See [docs/setup.md](docs/setup.md) for the complete process.
+
+The high-level steps are:
+
+1. Enable Plex Remote Access.
+2. Obtain your Plex token.
+3. Create a private Alexa custom skill and copy its Skill ID.
+4. Run the included Plex discovery script to find the public `plex.direct` hostname and port.
+5. Deploy the SAM stack.
+6. Paste the Lambda ARN into the Alexa Developer Console.
+7. Enable the Audio Player interface and test the skill.
 
 ```bash
 npm install
-npm test
-cp .env.example .env
-npm run start:gateway
+PLEX_TOKEN='your-token' npm run discover:plex
+sam build
+sam deploy --guided
 ```
 
-Test the gateway:
+## Security tradeoff
 
-```bash
-curl http://localhost:3000/healthz
+This project is optimized for a private skill and minimal infrastructure.
 
-curl -H "Authorization: Bearer $GATEWAY_API_KEY" \
-  http://localhost:3000/readyz
+The Plex token is:
 
-curl -X POST \
-  -H "Authorization: Bearer $GATEWAY_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"kind":"artist","query":"Queen"}' \
-  http://localhost:3000/v1/resolve
-```
+- Stored in the Lambda environment through a `NoEcho` CloudFormation parameter
+- Sent by Lambda to Plex for catalog requests
+- Included in the private audio and artwork URLs given to Alexa
+- Forwarded by CloudFront to Plex
 
-## Security model
+The token is not stored in DynamoDB, committed to Git, or intentionally written to logs. CloudFront access logging is not enabled.
 
-- `PLEX_TOKEN` exists only in the gateway container on your network.
-- Catalog endpoints require a separate bearer API key.
-- Stream URLs are HMAC signed and expire after a short period.
-- The stream endpoint only accepts Plex `/library/parts/.../file` paths.
-- The reverse proxy should expose only this gateway, not Plex port 32400.
-- Secrets are environment variables and are excluded from Git.
+This is the same practical token-in-URL model used by existing private Alexa Plex projects. It is simpler than running a home gateway, but it is not appropriate for a public multi-user service.
 
-Use separate random values for `GATEWAY_API_KEY` and `STREAM_SIGNING_SECRET`:
+## Audio behavior
 
-```bash
-openssl rand -base64 48
-openssl rand -base64 48
-```
+`TRANSCODE_POLICY=auto` is the default:
 
-## Audio formats
+- MP3 and AAC at Alexa-supported bitrates are streamed directly.
+- FLAC and other unsupported formats use Plex's universal MP3 transcoder.
+- The default transcode bitrate is 192 kbps.
 
-MP3 and AAC in MP3, M4A, AAC, or MP4 containers are proxied directly. Other source formats (including FLAC) are requested through Plex's universal transcode endpoint; Plex performs the conversion and the gateway still proxies the response, so its token is never exposed. Ensure the Plex server has transcoding enabled and enough CPU capacity for the selected format.
+Plex must have permission and enough CPU capacity to transcode unsupported files.
 
-## Common commands
+## Development
 
 ```bash
 npm install
 npm test
 npm run check
-npm run build:gateway
-npm run build:lambda
-npm run deploy:lambda
-npm run destroy:aws
+cfn-lint template.yaml
 ```
+
+The tests use mocked metadata and do not require Plex, AWS, or Alexa.
 
 ## Prior art
 
-This project is an original Node.js implementation informed by the Alexa playback and queue patterns in:
+Behavior and architecture were informed by:
 
-- `andresponte/askplex`, MIT licensed
-- `mwstowe/plexMusicPlayer`, GPL-3.0 reference implementation
-- `erinlkolp/alexa-plex-music-player-skill`, MIT licensed
+- `mwstowe/plexMusicPlayer`, current CloudFront-to-Plex architecture, GPL-3.0
+- `andresponte/askplex`, Alexa playback and queue behavior, MIT
+- `erinlkolp/alexa-plex-music-player-skill`, private Plex connection patterns, MIT
+- `Kuro4/askplex-Lite`, lightweight private-skill behavior, MIT-derived
 
-No Plex token-bearing audio URLs from those projects are used here.
+This repository is an original Node.js implementation. GPL source code was not copied.
 
 ## License
 

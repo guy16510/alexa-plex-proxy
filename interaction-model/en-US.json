@@ -4,27 +4,9 @@
       "invocationName": "plex music",
       "intents": [
         {
-          "name": "PlayAnyIntent",
-          "slots": [
-            {
-              "name": "query",
-              "type": "AMAZON.SearchQuery"
-            }
-          ],
-          "samples": [
-            "play {query}",
-            "play some {query}",
-            "put on {query}",
-            "shuffle {query}"
-          ]
-        },
-        {
           "name": "PlaySongIntent",
           "slots": [
-            {
-              "name": "query",
-              "type": "AMAZON.SearchQuery"
-            }
+            { "name": "query", "type": "AMAZON.SearchQuery" }
           ],
           "samples": [
             "play the song {query}",
@@ -35,25 +17,19 @@
         {
           "name": "PlayArtistIntent",
           "slots": [
-            {
-              "name": "query",
-              "type": "AMAZON.SearchQuery"
-            }
+            { "name": "query", "type": "AMAZON.SearchQuery" }
           ],
           "samples": [
             "play songs by {query}",
             "play music by {query}",
-            "play artist {query}",
-            "play the artist {query}"
+            "play the artist {query}",
+            "play artist {query}"
           ]
         },
         {
           "name": "PlayAlbumIntent",
           "slots": [
-            {
-              "name": "query",
-              "type": "AMAZON.SearchQuery"
-            }
+            { "name": "query", "type": "AMAZON.SearchQuery" }
           ],
           "samples": [
             "play the album {query}",
@@ -63,16 +39,42 @@
         {
           "name": "PlayPlaylistIntent",
           "slots": [
-            {
-              "name": "query",
-              "type": "AMAZON.SearchQuery"
-            }
+            { "name": "query", "type": "AMAZON.SearchQuery" }
           ],
           "samples": [
-            "play playlist {query}",
-            "play the playlist {query}",
             "play my {query} playlist",
-            "shuffle my {query} playlist"
+            "play the {query} playlist",
+            "play playlist {query}"
+          ]
+        },
+        {
+          "name": "ShuffleArtistIntent",
+          "slots": [
+            { "name": "query", "type": "AMAZON.SearchQuery" }
+          ],
+          "samples": [
+            "shuffle songs by {query}",
+            "shuffle music by {query}",
+            "shuffle the artist {query}"
+          ]
+        },
+        {
+          "name": "ShufflePlaylistIntent",
+          "slots": [
+            { "name": "query", "type": "AMAZON.SearchQuery" }
+          ],
+          "samples": [
+            "shuffle my {query} playlist",
+            "shuffle the {query} playlist"
+          ]
+        },
+        {
+          "name": "PlayAnyIntent",
+          "slots": [
+            { "name": "query", "type": "AMAZON.SearchQuery" }
+          ],
+          "samples": [
+            "play {query}"
           ]
         },
         {
@@ -81,8 +83,8 @@
           "samples": [
             "what is playing",
             "what song is this",
-            "who is this",
-            "what album is this"
+            "what's playing",
+            "tell me what is playing"
           ]
         },
         { "name": "AMAZON.CancelIntent", "samples": [] },
