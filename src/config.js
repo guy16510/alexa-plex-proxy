@@ -14,6 +14,22 @@ function parsePositiveInteger(value, fallback, name, max = Number.MAX_SAFE_INTEG
   return parsed;
 }
 
+function parseBoolean(value, fallback, name) {
+  if (value == null || String(value).trim() === '') return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  throw new Error(`${name} must be true or false`);
+}
+
+function parseEnum(value, fallback, name, allowed) {
+  const normalized = String(value ?? fallback).trim().toLowerCase();
+  if (!allowed.includes(normalized)) {
+    throw new Error(`${name} must be one of: ${allowed.join(', ')}`);
+  }
+  return normalized;
+}
+
 function normalizeBaseUrl(value, name) {
   const url = new URL(value);
   if (url.protocol !== 'https:') {
@@ -28,11 +44,6 @@ export function loadConfig(env = process.env) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
-  const transcodePolicy = env.TRANSCODE_POLICY?.trim().toLowerCase() || 'auto';
-  if (!['auto', 'always', 'never'].includes(transcodePolicy)) {
-    throw new Error('TRANSCODE_POLICY must be auto, always, or never');
-  }
-
   return {
     alexaSkillId: env.ALEXA_SKILL_ID.trim(),
     plexUrl: normalizeBaseUrl(env.PLEX_URL.trim(), 'PLEX_URL'),
@@ -42,13 +53,23 @@ export function loadConfig(env = process.env) {
     queueTable: env.QUEUE_TABLE.trim(),
     maxQueueTracks: parsePositiveInteger(env.MAX_QUEUE_TRACKS, 150, 'MAX_QUEUE_TRACKS', 500),
     maxAudioBitrate: parsePositiveInteger(env.MAX_AUDIO_BITRATE, 192, 'MAX_AUDIO_BITRATE', 384),
-    transcodePolicy,
+    transcodePolicy: parseEnum(env.TRANSCODE_POLICY, 'auto', 'TRANSCODE_POLICY', ['auto', 'always', 'never']),
     queueTtlHours: parsePositiveInteger(env.QUEUE_TTL_HOURS, 24, 'QUEUE_TTL_HOURS', 168),
     plexRequestTimeoutMs: parsePositiveInteger(
       env.PLEX_REQUEST_TIMEOUT_MS,
       10_000,
       'PLEX_REQUEST_TIMEOUT_MS',
       60_000
-    )
+    ),
+    lyricsMode: parseEnum(env.LYRICS_MODE, 'plex-lrclib', 'LYRICS_MODE', ['off', 'plex', 'plex-lrclib']),
+    lyricsRequestTimeoutMs: parsePositiveInteger(
+      env.LYRICS_REQUEST_TIMEOUT_MS,
+      2500,
+      'LYRICS_REQUEST_TIMEOUT_MS',
+      10_000
+    ),
+    personalityMode: parseEnum(env.PERSONALITY_MODE, 'spicy', 'PERSONALITY_MODE', ['clean', 'spicy']),
+    radioTrackLimit: parsePositiveInteger(env.RADIO_TRACK_LIMIT, 50, 'RADIO_TRACK_LIMIT', 150),
+    allowPlaylistWrites: parseBoolean(env.ALLOW_PLAYLIST_WRITES, true, 'ALLOW_PLAYLIST_WRITES')
   };
 }

@@ -1,12 +1,20 @@
 import Alexa from 'ask-sdk-core';
 import {
+  AddToPlaylistIntentHandler,
+  DiagnosticsIntentHandler,
+  DislikeTrackIntentHandler,
+  LikeTrackIntentHandler,
   LoopOffIntentHandler,
   LoopOnIntentHandler,
   NextIntentHandler,
   NowPlayingIntentHandler,
   PauseIntentHandler,
+  PlayDecadeIntentHandler,
+  PlayGenreIntentHandler,
   PlayMediaIntentHandler,
+  PlayRadioIntentHandler,
   PreviousIntentHandler,
+  RateTrackIntentHandler,
   ResumeIntentHandler,
   ShuffleOffIntentHandler,
   ShuffleOnIntentHandler,
@@ -19,6 +27,12 @@ import {
   PlaybackStartedHandler,
   PlaybackStoppedHandler
 } from './handlers/audio.js';
+import {
+  PlaybackControllerNextHandler,
+  PlaybackControllerPauseHandler,
+  PlaybackControllerPlayHandler,
+  PlaybackControllerPreviousHandler
+} from './handlers/playback-controller.js';
 import {
   ErrorHandler,
   FallbackIntentHandler,
@@ -34,6 +48,9 @@ export const handler = Alexa.SkillBuilders.custom()
   .addRequestHandlers(
     LaunchRequestHandler,
     PlayMediaIntentHandler,
+    PlayGenreIntentHandler,
+    PlayDecadeIntentHandler,
+    PlayRadioIntentHandler,
     PauseIntentHandler,
     ResumeIntentHandler,
     NextIntentHandler,
@@ -44,9 +61,18 @@ export const handler = Alexa.SkillBuilders.custom()
     LoopOnIntentHandler,
     LoopOffIntentHandler,
     NowPlayingIntentHandler,
+    LikeTrackIntentHandler,
+    DislikeTrackIntentHandler,
+    RateTrackIntentHandler,
+    AddToPlaylistIntentHandler,
+    DiagnosticsIntentHandler,
     StopIntentHandler,
     HelpIntentHandler,
     FallbackIntentHandler,
+    PlaybackControllerNextHandler,
+    PlaybackControllerPreviousHandler,
+    PlaybackControllerPauseHandler,
+    PlaybackControllerPlayHandler,
     PlaybackStartedHandler,
     PlaybackStoppedHandler,
     PlaybackNearlyFinishedHandler,

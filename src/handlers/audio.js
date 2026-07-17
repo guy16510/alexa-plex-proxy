@@ -68,7 +68,7 @@ export const PlaybackNearlyFinishedHandler = {
     queue.enqueuedIndex = nextIndex;
     await queueStore.put(userId, queue);
     return handlerInput.responseBuilder
-      .addDirective(playDirective({
+      .addDirective(await playDirective({
         queue,
         position: nextIndex,
         plex,
@@ -108,7 +108,7 @@ export const PlaybackFailedHandler = {
       queue.enqueuedIndex = null;
       await queueStore.put(userId, queue);
       return handlerInput.responseBuilder
-        .addDirective(playDirective({ queue, position: parsed.position, plex, offsetMs: 0 }))
+        .addDirective(await playDirective({ queue, position: parsed.position, plex, offsetMs: 0 }))
         .getResponse();
     }
 
@@ -117,7 +117,7 @@ export const PlaybackFailedHandler = {
       moveTo(queue, nextIndex);
       await queueStore.put(userId, queue);
       return handlerInput.responseBuilder
-        .addDirective(playDirective({ queue, position: nextIndex, plex, offsetMs: 0 }))
+        .addDirective(await playDirective({ queue, position: nextIndex, plex, offsetMs: 0 }))
         .getResponse();
     }
 

@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Private serverless Alexa skill for Plex music playback
+Description: Private serverless Alexa skill for enhanced Plex music playback
 
 Parameters:
   AlexaSkillId:
@@ -19,7 +19,7 @@ Parameters:
   PlexToken:
     Type: String
     NoEcho: true
-    Description: Plex authentication token used by Lambda and included in private stream URLs
+    Description: Plex authentication token used by Lambda and injected into CloudFront origin requests
   PlexMusicLibrary:
     Type: String
     Default: Music
@@ -41,6 +41,29 @@ Parameters:
     Default: 24
     MinValue: 1
     MaxValue: 168
+  LyricsMode:
+    Type: String
+    Default: plex-lrclib
+    AllowedValues: [off, plex, plex-lrclib]
+    Description: Use Plex timed lyrics only, optionally fall back to LRCLIB, or disable lyrics
+  LyricsRequestTimeoutMs:
+    Type: Number
+    Default: 2500
+    MinValue: 500
+    MaxValue: 10000
+  PersonalityMode:
+    Type: String
+    Default: spicy
+    AllowedValues: [clean, spicy]
+  RadioTrackLimit:
+    Type: Number
+    Default: 50
+    MinValue: 1
+    MaxValue: 150
+  AllowPlaylistWrites:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
 
 Globals:
   Function:
@@ -75,7 +98,7 @@ Resources:
     Properties:
       OriginRequestPolicyConfig:
         Name: !Sub '${AWS::StackName}-plex-query-strings'
-        Comment: Forward Plex authentication and transcode query parameters to the origin
+        Comment: Forward Plex transcode query parameters and range headers to the origin
         CookiesConfig:
           CookieBehavior: none
         HeadersConfig:
@@ -100,6 +123,9 @@ Resources:
             DomainName: !Ref PlexOriginDomain
             ConnectionAttempts: 3
             ConnectionTimeout: 10
+            OriginCustomHeaders:
+              - HeaderName: X-Plex-Token
+                HeaderValue: !Ref PlexToken
             CustomOriginConfig:
               HTTPPort: 80
               HTTPSPort: !Ref PlexOriginPort
@@ -140,7 +166,7 @@ Resources:
       FunctionName: !Sub '${AWS::StackName}-skill'
       CodeUri: .
       Handler: src/index.handler
-      Description: Private Alexa Plex music skill
+      Description: Private enhanced Alexa Plex music skill
       Environment:
         Variables:
           ALEXA_SKILL_ID: !Ref AlexaSkillId
@@ -154,6 +180,11 @@ Resources:
           TRANSCODE_POLICY: !Ref TranscodePolicy
           QUEUE_TTL_HOURS: !Ref QueueTtlHours
           PLEX_REQUEST_TIMEOUT_MS: '10000'
+          LYRICS_MODE: !Ref LyricsMode
+          LYRICS_REQUEST_TIMEOUT_MS: !Ref LyricsRequestTimeoutMs
+          PERSONALITY_MODE: !Ref PersonalityMode
+          RADIO_TRACK_LIMIT: !Ref RadioTrackLimit
+          ALLOW_PLAYLIST_WRITES: !Ref AllowPlaylistWrites
       Policies:
         - Statement:
             Effect: Allow

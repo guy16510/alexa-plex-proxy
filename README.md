@@ -1,49 +1,58 @@
 # Alexa Plex Proxy
 
-A private, fully serverless Alexa custom skill for playing music from Plex.
+A private, fully serverless Alexa custom skill for playing and managing music from Plex.
 
-There is no Unraid application, Docker container, reverse proxy, custom domain, or always-on middleware to manage.
+There is no Docker container, Unraid application, reverse proxy, custom domain, or always-on middleware to manage.
 
 ```text
-Alexa voice request
-        |
-        v
-AWS Lambda  -----> Plex API on your existing remote-access endpoint
-        |
-        v
+Alexa voice and screen controls
+             |
+             v
+AWS Lambda  -----> Plex catalog, ratings, playlists, lyrics, and timeline APIs
+             |
+             v
 DynamoDB queue state
 
-Alexa audio request
-        |
-        v
-CloudFront HTTPS :443 -----> Plex Remote Access HTTPS :32400
+Alexa audio and artwork requests
+             |
+             v
+CloudFront HTTPS :443 --X-Plex-Token header--> Plex Remote Access HTTPS :32400
 ```
 
-The architecture follows the current working pattern used by `mwstowe/plexMusicPlayer`, reimplemented in Node.js. Lambda searches Plex and manages playback. CloudFront gives Alexa the required trusted HTTPS endpoint on port 443 and connects directly to the Plex endpoint you already expose.
+CloudFront injects the Plex token into origin requests. Audio and artwork URLs sent to Alexa no longer contain the Plex token.
 
-## What works
+## Highlights
 
-- Play a song, artist, album, or Plex audio playlist
-- Generic requests such as `Alexa, ask Server Music to play Queen`
-- Shuffle an artist or playlist
-- Pause, resume, next, previous, start over, shuffle, and loop
+- Play a song, artist, album, audio playlist, genre, mood, style, or decade
+- Better matching for requests such as `play Everlong by Foo Fighters`
+- Shuffle, loop, pause, resume, next, previous, and start over
+- Physical and on-screen Playback Controller buttons
 - Continuous queue playback through `AudioPlayer.PlaybackNearlyFinished`
-- DynamoDB-backed queue and resume position across Lambda cold starts
-- Album artwork on supported Alexa devices
+- Large square artwork plus full-screen background artwork on supported devices
+- Timed lyrics on compatible screen devices using WebVTT captions
+- Local Plex `.lrc` lyrics first, with optional LRCLIB fallback
+- Track radio using Plex sonic-nearest tracks with artist fallback
+- Like, dislike, and zero-to-ten Plex ratings
+- Add the current song to an existing editable Plex playlist
+- Plex connectivity and queue diagnostics
 - Plex Now Playing timeline updates
-- Direct playback for compatible MP3 and AAC files
-- Plex MP3 transcoding for FLAC and other unsupported formats
-- Private development-mode skill, no Alexa Store publication required
+- Direct MP3/AAC playback and Plex MP3 transcoding for unsupported formats
+- Configurable clean or intentionally silly, mildly risqué responses
 
-## What you say
+## Voice examples
 
 ```text
 Alexa, ask Server Music to play Queen
-Alexa, ask Server Music to play songs by Queen
+Alexa, ask Server Music to play Everlong by Foo Fighters
 Alexa, ask Server Music to play the album The Wall
-Alexa, ask Server Music to play the song Everlong
-Alexa, ask Server Music to play my Road Trip playlist
-Alexa, ask Server Music to shuffle songs by Queen
+Alexa, ask Server Music to shuffle my Road Trip playlist
+Alexa, ask Server Music to play alternative music
+Alexa, ask Server Music to play nineties music
+Alexa, ask Server Music to play more like this
+Alexa, ask Server Music to like this song
+Alexa, ask Server Music to rate this track seven out of ten
+Alexa, ask Server Music to add this song to my Road Trip playlist
+Alexa, ask Server Music to run diagnostics
 Alexa, next
 Alexa, pause
 Alexa, resume
@@ -51,73 +60,79 @@ Alexa, resume
 
 A private custom skill still needs the invocation phrase, usually `ask Server Music`. It does not replace a first-party provider command such as `Alexa, play Queen`.
 
-## AWS resources
+## Lyrics
 
-The included SAM template creates:
+The skill looks for synchronized lyrics in this order:
 
-- One Node.js 24 Lambda function
-- One on-demand DynamoDB table with TTL
-- One CloudFront distribution
-- CloudWatch logs retained for 14 days
-- The Alexa invocation permission restricted to your Skill ID
+1. Timed local lyrics exposed by Plex, normally a sidecar `.lrc` file.
+2. LRCLIB cached exact match, then a conservative title/artist/duration search when `LYRICS_MODE=plex-lrclib`.
 
-Your Plex server remains where it is. CloudFront uses its existing public Plex Remote Access hostname as a custom origin.
+Plain `.txt` lyrics are intentionally not fabricated into fake timing. Lyrics are omitted when a sufficiently strong synchronized match is unavailable.
+
+Set `LYRICS_MODE=plex` to keep lyric lookup entirely inside Plex, or `LYRICS_MODE=off` to disable it. LRCLIB fallback sends track title, artist, album, and duration to LRCLIB.
+
+## Personality
+
+`PERSONALITY_MODE=spicy` is the default and uses randomized silly, mildly risqué responses. Set it to `clean` for straightforward responses.
+
+## Plex feature notes
+
+- Sonic track radio works best when Plex sonic analysis is available. It falls back to songs by the same artist when it is not.
+- Playlist additions work only with an existing regular audio playlist. Smart playlists are read-only.
+- Genre, mood, style, decade, and rating quality depend on the metadata in the Plex music library.
+- Album artwork and timed lyrics display only on compatible Alexa devices with screens.
 
 ## Quick start
 
-See [docs/setup.md](docs/setup.md) for the complete process.
-
-The high-level steps are:
-
-1. Enable Plex Remote Access.
-2. Obtain your Plex token.
-3. Create a private Alexa custom skill and copy its Skill ID.
-4. Run the included Plex discovery script to find the public `plex.direct` hostname and port.
-5. Deploy the SAM stack.
-6. Paste the Lambda ARN into the Alexa Developer Console.
-7. Enable the Audio Player interface and test the skill.
+See [docs/setup.md](docs/setup.md) for the complete setup and upgrade process.
 
 ```bash
+cp .env.example .env
 npm ci
 npm run discover:plex
 npm run deploy
 ```
 
-## Security tradeoff
+After deployment, import `interaction-model/en-US.json` into the Alexa Developer Console, build the model, and enable both the Audio Player and Playback Controller interfaces.
 
-This project is optimized for a private skill and minimal infrastructure.
+## Configuration
 
-The Plex token is:
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PLEX_MUSIC_LIBRARY` | `Music` | Preferred Plex music library name |
+| `MAX_QUEUE_TRACKS` | `150` | Maximum tracks retained in a queue |
+| `MAX_AUDIO_BITRATE` | `192` | Plex MP3 transcode bitrate |
+| `TRANSCODE_POLICY` | `auto` | `auto`, `always`, or `never` |
+| `QUEUE_TTL_HOURS` | `24` | DynamoDB queue expiration |
+| `LYRICS_MODE` | `plex-lrclib` | `off`, `plex`, or `plex-lrclib` |
+| `LYRICS_REQUEST_TIMEOUT_MS` | `2500` | Per-source timed lyric timeout |
+| `PERSONALITY_MODE` | `spicy` | `clean` or `spicy` |
+| `RADIO_TRACK_LIMIT` | `50` | Maximum tracks in track radio |
+| `ALLOW_PLAYLIST_WRITES` | `true` | Permit adding songs to existing playlists |
 
-- Stored in the Lambda environment through a `NoEcho` CloudFormation parameter
-- Sent by Lambda to Plex for catalog requests
-- Included in the private audio and artwork URLs given to Alexa
-- Forwarded by CloudFront to Plex
+## Security model
 
-The token is not stored in DynamoDB, committed to Git, or intentionally written to logs. CloudFront access logging is not enabled.
+- `PlexToken` is a `NoEcho` CloudFormation parameter.
+- Lambda uses the token in an HTTP header for Plex API calls.
+- CloudFront injects the token as an origin-only `X-Plex-Token` header.
+- Alexa receives token-free audio and image URLs.
+- The token is not stored in DynamoDB, committed to Git, or intentionally written to logs.
+- CloudFront access logging is disabled and caching remains disabled.
 
-This is the same practical token-in-URL model used by existing private Alexa Plex projects. It is simpler than running a home gateway, but it is not appropriate for a public multi-user service.
-
-## Audio behavior
-
-`TRANSCODE_POLICY=auto` is the default:
-
-- MP3 and AAC at Alexa-supported bitrates are streamed directly.
-- FLAC and other unsupported formats use Plex's universal MP3 transcoder.
-- The default transcode bitrate is 192 kbps.
-
-Plex must have permission and enough CPU capacity to transcode unsupported files.
+The token remains present in the Lambda environment and CloudFront distribution configuration, so access to those AWS resources must still be treated as privileged.
 
 ## Development
 
 ```bash
-npm install
+npm ci
 npm test
 npm run check
-cfn-lint template.yaml
+npm run validate:model
+sam validate --lint
+sam build
 ```
 
-The tests use mocked metadata and do not require Plex, AWS, or Alexa.
+The automated tests use mocked metadata and do not require Plex, Alexa, or AWS.
 
 ## Prior art
 

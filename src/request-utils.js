@@ -17,6 +17,18 @@ export function getApplicationId(handlerInput) {
     ?? null;
 }
 
+export function getAudioPlayerState(handlerInput) {
+  return handlerInput.requestEnvelope.context?.AudioPlayer ?? null;
+}
+
 export function isAudioPlayerRequest(handlerInput) {
   return Alexa.getRequestType(handlerInput.requestEnvelope).startsWith('AudioPlayer.');
+}
+
+export function isPlaybackControllerRequest(handlerInput) {
+  return Alexa.getRequestType(handlerInput.requestEnvelope).startsWith('PlaybackController.');
+}
+
+export function isPlaybackOnlyRequest(handlerInput) {
+  return isAudioPlayerRequest(handlerInput) || isPlaybackControllerRequest(handlerInput);
 }

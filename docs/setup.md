@@ -1,264 +1,195 @@
-# Complete setup
+# Setup and upgrade guide
 
-This deployment is entirely serverless. Nothing is installed on Unraid, and you do not need a custom domain or home reverse proxy.
+## 1. Requirements
 
-## 1. Prerequisites
-
-Install locally:
-
-- Node.js 22 or newer
-- AWS CLI
+- AWS account and AWS CLI credentials
 - AWS SAM CLI
+- Node.js 22 or newer
+- Amazon Developer account
+- Plex Media Server with Remote Access enabled
+- A Plex music library
+- A private Alexa custom skill
 
-You also need:
+The architecture is fully serverless. Plex remains on its existing server, while Lambda, DynamoDB, and CloudFront are deployed in AWS.
 
-- An AWS account
-- An Amazon Developer account
-- Plex Media Server with a music library
-- Plex Remote Access enabled
+## 2. Configure Plex
 
-Use an AWS region supported by Alexa custom-skill Lambda endpoints. For a North American skill, `us-east-1` is the normal choice.
+Enable Plex Remote Access and confirm the public endpoint uses HTTPS. Obtain a Plex token for the account that owns the music library and playlists.
 
-## 2. Find your Plex token
+Create local synchronized lyrics as sidecar `.lrc` files when possible. The filename should match the audio file. Refresh or rescan the library after adding lyrics.
 
-In Plex Web:
+For the strongest track-radio results, enable Plex sonic analysis for the music library when your Plex installation supports it.
 
-1. Open a media item.
-2. Select **Get Info**.
-3. Select **View XML**.
-4. Find `X-Plex-Token` in the URL.
+## 3. Create the Alexa skill
 
-Do not commit the token or paste it into GitHub issues.
+In the Alexa Developer Console:
 
-## 3. Find the Plex Remote Access origin
+1. Create a Custom skill using your own endpoint.
+2. Use `server music` as the invocation name, or change it consistently in the interaction model and examples.
+3. Open the JSON editor and import `interaction-model/en-US.json`.
+4. Save and build the interaction model.
+5. Enable the **Audio Player** interface.
+6. Enable the **Playback Controller** interface so screen and hardware play, pause, next, and previous controls reach the Lambda.
+7. Copy the Skill ID into `.env` as `ALEXA_SKILL_ID`.
 
-Copy `.env.example` to `.env`, set `PLEX_TOKEN`, then install dependencies and run the discovery script:
+The skill may remain in development mode. Store publication is not required for private use on devices attached to the same Amazon developer account.
+
+## 4. Configure the repository
+
+```bash
+cp .env.example .env
+```
+
+Set at least:
+
+```dotenv
+ALEXA_SKILL_ID=amzn1.ask.skill.your-id
+PLEX_URL=https://your-public-plex-host.plex.direct:32400
+PLEX_TOKEN=your-token
+PLEX_MUSIC_LIBRARY=Music
+AWS_REGION=us-east-1
+```
+
+Recommended enhanced defaults:
+
+```dotenv
+LYRICS_MODE=plex-lrclib
+LYRICS_REQUEST_TIMEOUT_MS=2500
+PERSONALITY_MODE=spicy
+RADIO_TRACK_LIMIT=50
+ALLOW_PLAYLIST_WRITES=true
+```
+
+Use `LYRICS_MODE=plex` when no track metadata should be sent to LRCLIB. Use `PERSONALITY_MODE=clean` when the deliberately cheeky responses are inappropriate.
+
+## 5. Verify Plex discovery
 
 ```bash
 npm ci
 npm run discover:plex
 ```
 
-The script lists the Plex servers and connections associated with the token. Use the recommended external direct HTTPS connection.
+Confirm the discovered `PLEX_URL` is the public HTTPS endpoint, not a LAN-only address.
 
-Example output:
-
-```text
-Recommended SAM parameters:
-  PlexOriginDomain=123-45-67-89.abcdef0123456789.plex.direct
-  PlexOriginPort=32400
-```
-
-The domain must be entered without `https://` and without the port.
-
-You can also inspect the resource endpoint manually:
-
-```bash
-curl -H "X-Plex-Token: YOUR_TOKEN" \
-  'https://plex.tv/api/resources?includeHttps=1&includeRelay=1'
-```
-
-If no external direct HTTPS connection appears, fix Plex Remote Access before proceeding.
-
-### Dynamic public IP warning
-
-A `plex.direct` hostname can contain your public IP. If your public IP changes and Plex advertises a new hostname, rerun discovery and update the SAM stack with the new `PlexOriginDomain`.
-
-## 4. Create the private Alexa skill
-
-Open the Alexa Developer Console and create a skill:
-
-- Skill name: `Plex Music`
-- Primary locale: English (US)
-- Model: Custom
-- Hosting: Provision your own
-
-After creation:
-
-1. Copy the Skill ID from the developer console.
-2. Open **Interaction Model**, then **JSON Editor**.
-3. Paste the contents of `interaction-model/en-US.json`.
-4. Save and build the model.
-5. Open **Interfaces**.
-6. Enable **Audio Player**.
-7. Save the interface settings.
-
-The skill can remain in development mode. It does not need certification or store publication for Echo devices registered to the same Amazon account.
-
-## 5. Deploy AWS resources
-
-Use `.env` as local deployment input only. It is ignored by Git; never commit it or token-bearing URLs. The automated deployment validates AWS identity, tests, the interaction model, SAM, Plex, and deployed resources without printing secret values:
+## 6. Deploy AWS resources
 
 ```bash
 npm run deploy
 ```
 
-The deployment creates CloudFront, which can take several minutes to finish provisioning.
+The deployment script performs the following before deploying:
 
-`PlexToken` is marked `NoEcho`, so SAM and CloudFormation mask it in parameter displays. It is still available to anyone with permission to inspect the Lambda configuration, which is expected for this private deployment.
+- AWS identity check
+- Node test suite
+- JavaScript syntax checks
+- Interaction-model validation
+- SAM template linting
+- SAM build
 
-## 6. Connect Alexa to Lambda
+It then deploys:
 
-After deployment, SAM prints `SkillFunctionArn`.
+- Lambda skill function
+- DynamoDB queue table with TTL
+- CloudFront distribution
+- CloudWatch log group
+- Alexa invocation permission restricted to the configured Skill ID
 
-In the Alexa Developer Console:
+CloudFront injects the Plex token into origin requests through `X-Plex-Token`. The token is no longer included in the audio and artwork URLs returned to Alexa.
 
-1. Open **Endpoint**.
-2. Select **AWS Lambda ARN**.
-3. Paste `SkillFunctionArn` into the Default Region field.
-4. Save endpoints.
-5. Rebuild the interaction model if prompted.
+## 7. Connect the Lambda endpoint
 
-The SAM template grants invocation permission only to the Skill ID supplied during deployment.
+Copy the `SkillFunctionArn` deployment output into the Alexa Developer Console endpoint configuration. Select the same AWS region used for deployment.
 
-## 7. Test Plex connectivity
+Save the endpoint configuration and rebuild the interaction model after any model changes.
 
-Lambda queries your public Plex Remote Access endpoint directly. Before testing Alexa, verify the endpoint from outside your home network:
+## 8. Test
 
-```bash
-curl -H "X-Plex-Token: YOUR_TOKEN" \
-  'https://YOUR-PLEX-DOMAIN.plex.direct:32400/identity'
-```
-
-You should receive Plex XML. A timeout, certificate error, or unauthorized response must be fixed before Lambda can work.
-
-## 8. Test the skill
-
-Use the Alexa simulator with device testing enabled, or use an Echo on the same Amazon account:
+Start with basic playback:
 
 ```text
 Alexa, open Server Music
 Alexa, ask Server Music to play songs by Queen
 Alexa, ask Server Music to play the album The Wall
-Alexa, ask Server Music to play the song Everlong
+Alexa, ask Server Music what is playing
+```
+
+Then test enhanced functions:
+
+```text
+Alexa, ask Server Music to play Everlong by Foo Fighters
+Alexa, ask Server Music to play nineties music
+Alexa, ask Server Music to play alternative music
+Alexa, ask Server Music to play more like this
+Alexa, ask Server Music to like this song
+Alexa, ask Server Music to rate this track eight out of ten
+Alexa, ask Server Music to add this song to my Road Trip playlist
+Alexa, ask Server Music to run diagnostics
+```
+
+On an Echo Show or another compatible screen device, confirm:
+
+- Square album artwork appears
+- A full-screen background image appears
+- Synchronized lyrics appear when timed lyrics are available
+- Play, pause, next, and previous controls work
+
+## 9. Upgrade an existing deployment
+
+Pull the updated repository, preserve `.env`, and run:
+
+```bash
+npm ci
+npm run deploy
+```
+
+Then re-import `interaction-model/en-US.json`, build the model, and enable Playback Controller if it was not previously enabled.
+
+The CloudFront distribution is updated in place to inject the Plex token at the origin. Existing DynamoDB queue data remains compatible.
+
+## 10. Troubleshooting
+
+### Audio fails after the security upgrade
+
+Confirm the CloudFront distribution origin has an `X-Plex-Token` custom header and that the stack deployment completed successfully. Audio URLs should not contain `X-Plex-Token` anymore.
+
+### Artwork is missing
+
+Confirm the track has Plex artwork and that the CloudFront hostname can retrieve both the original image and `/photo/:/transcode` image path over HTTPS.
+
+### Lyrics are missing
+
+- Confirm the local file is synchronized `.lrc`, not plain `.txt`.
+- Refresh the Plex library item after adding the sidecar file.
+- Confirm `LYRICS_MODE` is not `off`.
+- Check Lambda logs for `Plex lyrics lookup failed` or `LRCLIB lyrics lookup failed`.
+- A lyric result is intentionally rejected when title, artist, or duration matching is weak.
+
+### Track radio returns mostly one artist
+
+Plex sonic-nearest results were unavailable, so the skill used its artist fallback. Confirm sonic analysis is enabled and complete when supported by your Plex setup.
+
+### Playlist addition fails
+
+The target must already exist, be an audio playlist, and not be a smart playlist. Confirm `ALLOW_PLAYLIST_WRITES=true` and that the Plex token belongs to the playlist owner.
+
+### Screen buttons do nothing
+
+Enable Playback Controller in the Alexa Developer Console and rebuild the skill model. Audio Player alone does not deliver all hardware and screen control events.
+
+### Generic playback chooses the wrong result
+
+Use a more specific phrase such as:
+
+```text
+Alexa, ask Server Music to play the song Everlong by Foo Fighters
+Alexa, ask Server Music to play the album The Wall
 Alexa, ask Server Music to play my Road Trip playlist
 ```
 
-Then test:
+### Check health without opening AWS
 
 ```text
-Alexa, next
-Alexa, previous
-Alexa, pause
-Alexa, resume
-Alexa, shuffle
-Alexa, loop
-Alexa, ask Server Music what's playing
+Alexa, ask Server Music to run diagnostics
 ```
 
-## 9. How streaming works
-
-Lambda never carries the audio bytes.
-
-For compatible MP3 and AAC tracks, Lambda gives Alexa a URL like:
-
-```text
-https://CLOUDFRONT-DOMAIN/library/parts/.../file.mp3?X-Plex-Token=...
-```
-
-For FLAC and other unsupported formats, Lambda gives Alexa a Plex transcode URL through the same CloudFront distribution:
-
-```text
-https://CLOUDFRONT-DOMAIN/music/:/transcode/universal/start.mp3?...
-```
-
-CloudFront accepts the Alexa request on trusted HTTPS port 443, forwards query parameters and range requests to Plex, and connects to the Plex origin on port 32400.
-
-Caching is disabled so Plex authenticates each request and serves the requested byte range or transcode session directly.
-
-## 10. Configuration options
-
-### `TranscodePolicy`
-
-- `auto`, direct-play compatible MP3/AAC and transcode everything else
-- `always`, transcode every track to MP3
-- `never`, never request a Plex transcode
-
-Use `auto` unless troubleshooting indicates otherwise.
-
-### `MaxAudioBitrate`
-
-The default is 192 kbps. Alexa accepts audio streams from 16 through 384 kbps. Lower the setting if your upstream internet connection or Plex server struggles.
-
-### `MaxQueueTracks`
-
-The default is 150 and the maximum is 500. Very large artist queues increase DynamoDB item size and Plex query time.
-
-## Troubleshooting
-
-### Alexa says Plex Music had an error
-
-Check Lambda logs:
-
-```bash
-sam logs --stack-name alexa-plex-proxy \
-  --name SkillFunction \
-  --region us-east-1 \
-  --tail
-```
-
-Common causes:
-
-- Wrong Plex token
-- Wrong music library name
-- Plex Remote Access unavailable
-- Wrong Plex origin hostname or port
-- Skill ID mismatch
-
-### Search works but audio does not play
-
-Check the CloudFront output:
-
-```bash
-aws cloudformation describe-stacks \
-  --stack-name alexa-plex-proxy \
-  --query "Stacks[0].Outputs"
-```
-
-Then test a known Plex media path through CloudFront. Do not paste a token-bearing test URL into public logs or issues.
-
-Also check:
-
-- CloudFront distribution status is `Deployed`
-- Plex origin certificate matches the configured origin hostname
-- Plex Remote Access port is reachable externally
-- The track can be transcoded when using FLAC
-
-### MP3 works but FLAC fails
-
-Set `TranscodePolicy` to `always` temporarily and redeploy. Check Plex Dashboard to see whether a transcode session starts. Confirm the Plex server has working transcoder permissions and free temporary space.
-
-### Playback stops after one song
-
-Check Lambda logs for `AudioPlayer.PlaybackNearlyFinished`. Confirm the Audio Player interface is enabled in the Alexa Developer Console and the queue item remains in DynamoDB.
-
-### Alexa routes the request to Amazon Music
-
-Use the full private-skill invocation:
-
-```text
-Alexa, ask Server Music to play Queen
-```
-
-A custom skill cannot claim the global `Alexa, play Queen` provider command.
-
-## Updating
-
-After changing code:
-
-```bash
-npm test
-npm run check
-sam build
-sam deploy
-```
-
-After changing only the Alexa interaction model, paste the updated JSON into the developer console and rebuild the model.
-
-## Removing everything
-
-```bash
-sam delete --stack-name alexa-plex-proxy --region us-east-1
-```
-
-CloudFront distributions take time to disable and delete. SAM handles the dependency order.
+This reports live Plex connectivity, queue size, lyric mode, and playlist-write status.
