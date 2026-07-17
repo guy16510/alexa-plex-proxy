@@ -1,11 +1,11 @@
 import { loadConfig } from './config.js';
-import { EnhancedPlexClient } from './enhanced-plex-client.js';
 import { createResponder } from './personality.js';
+import { VisualPlexClient } from './visual-plex-client.js';
 import { QueueStore } from './queue-store.js';
 
 export const config = loadConfig();
 export const respond = createResponder({ mode: config.personalityMode });
-export const plex = new EnhancedPlexClient({
+export const plex = new VisualPlexClient({
   baseUrl: config.plexUrl,
   token: config.plexToken,
   streamBaseUrl: config.streamBaseUrl,
