@@ -44,6 +44,7 @@ import {
   StopIntentHandler,
   ValidateApplicationIdInterceptor
 } from './handlers/system.js';
+import { VisualMotionResponseInterceptor } from './apl-motion.js';
 import {
   AplUserEventHandler,
   ShowHomeIntentHandler,
@@ -55,6 +56,7 @@ import {
 
 export const handler = Alexa.SkillBuilders.custom()
   .addRequestInterceptors(ValidateApplicationIdInterceptor)
+  .addResponseInterceptors(VisualMotionResponseInterceptor)
   .addRequestHandlers(
     VisualLaunchRequestHandler,
     LaunchRequestHandler,
