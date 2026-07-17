@@ -79,7 +79,7 @@ Resources:
     Properties:
       CachePolicyConfig:
         Name: !Sub '${AWS::StackName}-plex-no-cache'
-        Comment: Disable caching so Plex authenticates every audio and artwork request
+        Comment: Keep audio streams and private Plex API paths uncached
         DefaultTTL: 0
         MaxTTL: 0
         MinTTL: 0
@@ -92,6 +92,25 @@ Resources:
             HeaderBehavior: none
           QueryStringsConfig:
             QueryStringBehavior: none
+
+  PlexArtworkCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub '${AWS::StackName}-plex-artwork-cache'
+        Comment: Cache deterministic resized Plex artwork used by Alexa and APL screens
+        DefaultTTL: 86400
+        MaxTTL: 604800
+        MinTTL: 3600
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingBrotli: false
+          EnableAcceptEncodingGzip: false
+          CookiesConfig:
+            CookieBehavior: none
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: all
 
   PlexOriginRequestPolicy:
     Type: AWS::CloudFront::OriginRequestPolicy
@@ -141,6 +160,15 @@ Resources:
           Compress: false
           CachePolicyId: !Ref PlexNoCachePolicy
           OriginRequestPolicyId: !Ref PlexOriginRequestPolicy
+        CacheBehaviors:
+          - PathPattern: '/photo/:/transcode*'
+            TargetOriginId: plex-origin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: false
+            CachePolicyId: !Ref PlexArtworkCachePolicy
+            OriginRequestPolicyId: !Ref PlexOriginRequestPolicy
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
 
