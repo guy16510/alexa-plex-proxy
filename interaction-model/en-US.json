@@ -6,7 +6,10 @@
         {
           "name": "PlaySongIntent",
           "slots": [
-            { "name": "query", "type": "AMAZON.SearchQuery" }
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
           ],
           "samples": [
             "play the song {query}",
@@ -17,7 +20,10 @@
         {
           "name": "PlayArtistIntent",
           "slots": [
-            { "name": "query", "type": "AMAZON.SearchQuery" }
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
           ],
           "samples": [
             "play songs by {query}",
@@ -29,7 +35,10 @@
         {
           "name": "PlayAlbumIntent",
           "slots": [
-            { "name": "query", "type": "AMAZON.SearchQuery" }
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
           ],
           "samples": [
             "play the album {query}",
@@ -39,7 +48,10 @@
         {
           "name": "PlayPlaylistIntent",
           "slots": [
-            { "name": "query", "type": "AMAZON.SearchQuery" }
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
           ],
           "samples": [
             "play my {query} playlist",
@@ -48,9 +60,58 @@
           ]
         },
         {
+          "name": "PlayGenreIntent",
+          "slots": [
+            {
+              "name": "genre",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play {genre} music",
+            "play some {genre}",
+            "shuffle {genre} music",
+            "give me {genre} music"
+          ]
+        },
+        {
+          "name": "PlayDecadeIntent",
+          "slots": [
+            {
+              "name": "decade",
+              "type": "DECADE"
+            }
+          ],
+          "samples": [
+            "play {decade} music",
+            "play music from the {decade}",
+            "shuffle songs from the {decade}",
+            "give me music from the {decade}"
+          ]
+        },
+        {
+          "name": "PlayRadioIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "start track radio",
+            "start a radio from this song",
+            "play more like this",
+            "start a radio from {query}",
+            "play songs like {query}"
+          ]
+        },
+        {
           "name": "ShuffleArtistIntent",
           "slots": [
-            { "name": "query", "type": "AMAZON.SearchQuery" }
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
           ],
           "samples": [
             "shuffle songs by {query}",
@@ -61,7 +122,10 @@
         {
           "name": "ShufflePlaylistIntent",
           "slots": [
-            { "name": "query", "type": "AMAZON.SearchQuery" }
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
           ],
           "samples": [
             "shuffle my {query} playlist",
@@ -71,7 +135,10 @@
         {
           "name": "PlayAnyIntent",
           "slots": [
-            { "name": "query", "type": "AMAZON.SearchQuery" }
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
           ],
           "samples": [
             "play {query}"
@@ -85,6 +152,68 @@
             "what song is this",
             "what's playing",
             "tell me what is playing"
+          ]
+        },
+        {
+          "name": "LikeTrackIntent",
+          "slots": [],
+          "samples": [
+            "I like this song",
+            "like this song",
+            "love this song",
+            "rate this song a ten",
+            "favorite this song",
+            "add this song to favorites"
+          ]
+        },
+        {
+          "name": "DislikeTrackIntent",
+          "slots": [],
+          "samples": [
+            "I do not like this song",
+            "dislike this song",
+            "hate this song",
+            "never play this again"
+          ]
+        },
+        {
+          "name": "RateTrackIntent",
+          "slots": [
+            {
+              "name": "rating",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "rate this song {rating}",
+            "give this song a {rating}",
+            "rate this track {rating} out of ten"
+          ]
+        },
+        {
+          "name": "AddToPlaylistIntent",
+          "slots": [
+            {
+              "name": "playlist",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "add this song to my {playlist} playlist",
+            "add this track to {playlist}",
+            "put this song in {playlist}",
+            "save this to my {playlist} playlist"
+          ]
+        },
+        {
+          "name": "DiagnosticsIntent",
+          "slots": [],
+          "samples": [
+            "music server status",
+            "run diagnostics",
+            "check Plex",
+            "is the music server working",
+            "what is the queue status"
           ]
         },
         { "name": "AMAZON.CancelIntent", "samples": [] },
@@ -101,7 +230,22 @@
         { "name": "AMAZON.StartOverIntent", "samples": [] },
         { "name": "AMAZON.StopIntent", "samples": [] }
       ],
-      "types": []
+      "types": [
+        {
+          "name": "DECADE",
+          "values": [
+            { "name": { "value": "2020s", "synonyms": ["twenties", "twenty twenties"] } },
+            { "name": { "value": "2010s", "synonyms": ["twenty tens", "two thousand tens"] } },
+            { "name": { "value": "2000s", "synonyms": ["two thousands", "two thousand", "noughties", "aughts"] } },
+            { "name": { "value": "1990s", "synonyms": ["nineties", "ninety s"] } },
+            { "name": { "value": "1980s", "synonyms": ["eighties", "eighty s"] } },
+            { "name": { "value": "1970s", "synonyms": ["seventies", "seventy s"] } },
+            { "name": { "value": "1960s", "synonyms": ["sixties", "sixty s"] } },
+            { "name": { "value": "1950s", "synonyms": ["fifties", "fifty s"] } },
+            { "name": { "value": "1940s", "synonyms": ["forties", "forty s"] } }
+          ]
+        }
+      ]
     }
   }
 }
