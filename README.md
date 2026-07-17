@@ -24,7 +24,7 @@ The architecture follows the current working pattern used by `mwstowe/plexMusicP
 ## What works
 
 - Play a song, artist, album, or Plex audio playlist
-- Generic requests such as `Alexa, ask Plex Music to play Queen`
+- Generic requests such as `Alexa, ask Server Music to play Queen`
 - Shuffle an artist or playlist
 - Pause, resume, next, previous, start over, shuffle, and loop
 - Continuous queue playback through `AudioPlayer.PlaybackNearlyFinished`
@@ -38,18 +38,18 @@ The architecture follows the current working pattern used by `mwstowe/plexMusicP
 ## What you say
 
 ```text
-Alexa, ask Plex Music to play Queen
-Alexa, ask Plex Music to play songs by Queen
-Alexa, ask Plex Music to play the album The Wall
-Alexa, ask Plex Music to play the song Everlong
-Alexa, ask Plex Music to play my Road Trip playlist
-Alexa, ask Plex Music to shuffle songs by Queen
+Alexa, ask Server Music to play Queen
+Alexa, ask Server Music to play songs by Queen
+Alexa, ask Server Music to play the album The Wall
+Alexa, ask Server Music to play the song Everlong
+Alexa, ask Server Music to play my Road Trip playlist
+Alexa, ask Server Music to shuffle songs by Queen
 Alexa, next
 Alexa, pause
 Alexa, resume
 ```
 
-A private custom skill still needs the invocation phrase, usually `ask Plex Music`. It does not replace a first-party provider command such as `Alexa, play Queen`.
+A private custom skill still needs the invocation phrase, usually `ask Server Music`. It does not replace a first-party provider command such as `Alexa, play Queen`.
 
 ## AWS resources
 

@@ -30,10 +30,12 @@ test('builds Plex MP3 transcode URLs for unsupported audio', () => {
     partPath: '/library/parts/100/file.flac',
     directPlayable: false
   }, 'session-1'));
-  assert.equal(url.pathname, '/music/:/transcode/universal/start.mp3');
+  assert.equal(url.pathname, '/audio/:/transcode/universal/start.mp3');
   assert.equal(url.searchParams.get('path'), '/library/metadata/456');
-  assert.equal(url.searchParams.get('maxAudioBitrate'), '192');
+  assert.equal(url.searchParams.get('musicBitrate'), '192');
   assert.equal(url.searchParams.get('session'), 'session-1');
+  assert.equal(url.searchParams.get('transcodeSessionId'), 'session-1');
+  assert.equal(url.searchParams.get('X-Plex-Platform'), 'Web');
 });
 
 test('normalizes direct-play and transcode metadata', () => {

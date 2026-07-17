@@ -19,7 +19,7 @@ export const LaunchRequestHandler = {
   },
   handle(handlerInput) {
     return handlerInput.responseBuilder
-      .speak('Plex Music is ready. Say play Queen, play the album The Wall, or play the song Everlong.')
+      .speak('Server Music is ready. Say play Queen, play the album The Wall, or play the song Everlong.')
       .reprompt('What should I play from Plex?')
       .getResponse();
   }
@@ -81,7 +81,7 @@ export const ErrorHandler = {
     });
     if (isAudioPlayerRequest(handlerInput)) return emptyResponse(handlerInput);
     return handlerInput.responseBuilder
-      .speak('Plex Music hit an error. Check the Lambda logs and Plex remote access.')
+      .speak('Server Music hit an error. Check the Lambda logs and Plex remote access.')
       .getResponse();
   }
 };

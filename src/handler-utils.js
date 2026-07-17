@@ -18,7 +18,7 @@ export async function getQueueOrSpeak(handlerInput) {
     return {
       queue: null,
       response: handlerInput.responseBuilder
-        .speak('There is nothing queued. Ask Plex Music to play an artist, song, album, or playlist.')
+        .speak('There is nothing queued. Ask Server Music to play an artist, song, album, or playlist.')
         .getResponse()
     };
   }

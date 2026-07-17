@@ -127,11 +127,11 @@ You should receive Plex XML. A timeout, certificate error, or unauthorized respo
 Use the Alexa simulator with device testing enabled, or use an Echo on the same Amazon account:
 
 ```text
-Alexa, open Plex Music
-Alexa, ask Plex Music to play songs by Queen
-Alexa, ask Plex Music to play the album The Wall
-Alexa, ask Plex Music to play the song Everlong
-Alexa, ask Plex Music to play my Road Trip playlist
+Alexa, open Server Music
+Alexa, ask Server Music to play songs by Queen
+Alexa, ask Server Music to play the album The Wall
+Alexa, ask Server Music to play the song Everlong
+Alexa, ask Server Music to play my Road Trip playlist
 ```
 
 Then test:
@@ -143,7 +143,7 @@ Alexa, pause
 Alexa, resume
 Alexa, shuffle
 Alexa, loop
-Alexa, ask Plex Music what's playing
+Alexa, ask Server Music what's playing
 ```
 
 ## 9. How streaming works
@@ -237,7 +237,7 @@ Check Lambda logs for `AudioPlayer.PlaybackNearlyFinished`. Confirm the Audio Pl
 Use the full private-skill invocation:
 
 ```text
-Alexa, ask Plex Music to play Queen
+Alexa, ask Server Music to play Queen
 ```
 
 A custom skill cannot claim the global `Alexa, play Queen` provider command.

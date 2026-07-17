@@ -277,20 +277,22 @@ export class PlexClient {
       return appendToken(url, this.token);
     }
 
-    const url = new URL('/music/:/transcode/universal/start.mp3', `${this.streamBaseUrl}/`);
+    const url = new URL('/audio/:/transcode/universal/start.mp3', `${this.streamBaseUrl}/`);
     const params = {
       path: `/library/metadata/${track.ratingKey}`,
       mediaIndex: 0,
       partIndex: 0,
       protocol: 'http',
       directPlay: 0,
-      directStream: 1,
-      maxAudioBitrate: this.maxAudioBitrate,
+      directStream: 0,
+      directStreamAudio: 0,
+      musicBitrate: this.maxAudioBitrate,
       session: sessionId,
-      'X-Plex-Session-Identifier': sessionId,
+      transcodeSessionId: sessionId,
       'X-Plex-Product': 'Alexa Plex Music',
       'X-Plex-Version': '1.0.0',
       'X-Plex-Device': 'Alexa',
+      'X-Plex-Platform': 'Web',
       'X-Plex-Client-Identifier': 'alexa-plex-proxy-lambda',
       'X-Plex-Token': this.token
     };

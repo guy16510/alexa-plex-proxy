@@ -10,7 +10,13 @@ if (!region) throw new Error('Missing AWS_REGION or AWS_DEFAULT_REGION in .env')
 const plexUrl = new URL(process.env.PLEX_URL);
 if (plexUrl.protocol !== 'https:') throw new Error('PLEX_URL must use HTTPS');
 const stackName = process.env.STACK_NAME || 'alexa-plex-music';
-const run = (command, args, options = {}) => execFileSync(command, args, { stdio: 'inherit', env: { ...process.env, AWS_REGION: region, AWS_DEFAULT_REGION: region }, ...options });
+const run = (command, args, options = {}) => {
+  try {
+    return execFileSync(command, args, { stdio: 'inherit', env: { ...process.env, AWS_REGION: region, AWS_DEFAULT_REGION: region }, ...options });
+  } catch {
+    throw new Error(`${command} failed; see the command output above.`);
+  }
+};
 const originPort = plexUrl.port || '32400';
 const params = [
   `AlexaSkillId=${process.env.ALEXA_SKILL_ID}`,
@@ -31,5 +37,5 @@ run('npm', ['run', 'validate:model']);
 run('sam', ['validate', '--lint']);
 run('sam', ['build']);
 // PlexToken is a NoEcho parameter. Never echo this command or the parameter list.
-run('sam', ['deploy', '--stack-name', stackName, '--region', region, '--capabilities', 'CAPABILITY_IAM', '--no-confirm-changeset', '--no-fail-on-empty-changeset', '--parameter-overrides', ...params]);
+run('sam', ['deploy', '--stack-name', stackName, '--region', region, '--resolve-s3', '--capabilities', 'CAPABILITY_IAM', '--no-confirm-changeset', '--no-fail-on-empty-changeset', '--parameter-overrides', ...params]);
 run('aws', ['cloudformation', 'describe-stacks', '--stack-name', stackName, '--region', region, '--query', 'Stacks[0].Outputs', '--output', 'table']);
