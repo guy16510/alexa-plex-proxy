@@ -30,13 +30,16 @@ async function playResult(handlerInput, result, {
   spokenTitle = null
 } = {}) {
   const query = spokenTitle ?? result?.title ?? 'that';
-  if (!result?.tracks?.length) {
+  const userId = getUserId(handlerInput);
+  const blockedTrackIds = await queueStore.getBlockedTrackIds(userId);
+  const playableTracks = (result?.tracks ?? []).filter((track) => !blockedTrackIds.has(track.ratingKey));
+  if (playableTracks.length === 0) {
     return handlerInput.responseBuilder
       .speak(respond('notFound', { query }))
       .getResponse();
   }
 
-  const queue = createQueue(result.tracks.slice(0, config.maxQueueTracks), {
+  const queue = createQueue(playableTracks.slice(0, config.maxQueueTracks), {
     sourceTitle: result.title,
     sourceKind: result.kind,
     ttlHours: config.queueTtlHours
@@ -45,7 +48,7 @@ async function playResult(handlerInput, result, {
     moveTo(queue, Math.floor(Math.random() * queue.tracks.length));
     setShuffle(queue, true);
   }
-  await queueStore.put(getUserId(handlerInput), queue);
+  await queueStore.put(userId, queue);
 
   const key = speechKey ?? (shuffle ? 'shuffling' : 'playing');
   return handlerInput.responseBuilder
@@ -63,7 +66,9 @@ function currentOffsetMs(handlerInput, queue) {
 }
 
 function requestedSeconds(handlerInput) {
-  const parsed = Number(getSlotValue(handlerInput, 'seconds'));
+  const raw = getSlotValue(handlerInput, 'seconds');
+  if (raw === null || raw === undefined || String(raw).trim() === '') return 30;
+  const parsed = Number(raw);
   if (!Number.isFinite(parsed)) return 30;
   return Math.max(5, Math.min(600, Math.round(parsed)));
 }
@@ -333,8 +338,10 @@ export const LikeTrackIntentHandler = {
     const { queue, response } = await getQueueOrSpeak(handlerInput);
     if (response) return response;
     const track = getTrackAt(queue);
+    const userId = getUserId(handlerInput);
+    await queueStore.unblockTrack(userId, track.ratingKey);
     await plex.rateTrack(track, 10);
-    await queueStore.put(getUserId(handlerInput), queue);
+    await queueStore.put(userId, queue);
     return handlerInput.responseBuilder
       .speak(respond('liked', { title: track.title }))
       .getResponse();
@@ -348,7 +355,13 @@ export const DislikeTrackIntentHandler = {
     const { queue, response } = await getQueueOrSpeak(handlerInput);
     if (response) return response;
     const track = getTrackAt(queue);
-    await plex.rateTrack(track, 0);
+    await queueStore.blockTrack(userId, track.ratingKey);
+    try {
+      await plex.rateTrack(track, 0);
+    } catch (error) {
+      console.warn('Plex thumbs-down rating failed after local block', { message: error.message });
+      track.userRating = 0;
+    }
     const nextIndex = findNextPlayableIndex(queue);
     const builder = handlerInput.responseBuilder.speak(respond('disliked', { title: track.title }));
     if (nextIndex != null) {
@@ -372,8 +385,11 @@ export const RateTrackIntentHandler = {
     const { queue, response } = await getQueueOrSpeak(handlerInput);
     if (response) return response;
     const track = getTrackAt(queue);
+    const userId = getUserId(handlerInput);
+    if (rating === 0) await queueStore.blockTrack(userId, track.ratingKey);
+    else await queueStore.unblockTrack(userId, track.ratingKey);
     const savedRating = await plex.rateTrack(track, rating);
-    await queueStore.put(getUserId(handlerInput), queue);
+    await queueStore.put(userId, queue);
     return handlerInput.responseBuilder
       .speak(respond('rated', { title: track.title, rating: savedRating }))
       .getResponse();
