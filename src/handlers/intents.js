@@ -10,7 +10,7 @@ import {
   setShuffle
 } from '../queue.js';
 import { getSlotValue, getUserId } from '../request-utils.js';
-import { config, plex, queueStore } from '../runtime.js';
+import { config, plex, queueStore, respond } from '../runtime.js';
 
 function intentDetails(intentName) {
   return {
@@ -22,6 +22,37 @@ function intentDetails(intentName) {
     ShuffleArtistIntent: { kind: 'artist', shuffle: true },
     ShufflePlaylistIntent: { kind: 'playlist', shuffle: true }
   }[intentName] ?? { kind: 'any', shuffle: false };
+}
+
+async function playResult(handlerInput, result, {
+  shuffle = false,
+  speechKey = null,
+  spokenTitle = null
+} = {}) {
+  const query = spokenTitle ?? result?.title ?? 'that';
+  if (!result?.tracks?.length) {
+    return handlerInput.responseBuilder
+      .speak(respond('notFound', { query }))
+      .getResponse();
+  }
+
+  const queue = createQueue(result.tracks.slice(0, config.maxQueueTracks), {
+    sourceTitle: result.title,
+    sourceKind: result.kind,
+    ttlHours: config.queueTtlHours
+  });
+  if (shuffle) {
+    moveTo(queue, Math.floor(Math.random() * queue.tracks.length));
+    setShuffle(queue, true);
+  }
+  await queueStore.put(getUserId(handlerInput), queue);
+
+  const key = speechKey ?? (shuffle ? 'shuffling' : 'playing');
+  return handlerInput.responseBuilder
+    .speak(respond(key, { title: result.title }))
+    .addDirective(await playDirective({ queue, position: queue.index, plex }))
+    .withShouldEndSession(true)
+    .getResponse();
 }
 
 export const PlayMediaIntentHandler = {
@@ -43,31 +74,61 @@ export const PlayMediaIntentHandler = {
     const query = getSlotValue(handlerInput, 'query');
     if (!query) {
       return handlerInput.responseBuilder
-        .speak('I did not catch what you wanted to play.')
+        .speak('I did not catch what you wanted to play. The microphones are apparently unionizing.')
         .reprompt('Try saying, play songs by Queen.')
         .getResponse();
     }
 
     const result = await plex.resolve(kind, query);
-    if (!result?.tracks?.length) {
-      return handlerInput.responseBuilder
-        .speak(`I could not find ${query} in your Plex music library.`)
-        .getResponse();
+    return playResult(handlerInput, result, { shuffle, spokenTitle: query });
+  }
+};
+
+export const PlayGenreIntentHandler = {
+  canHandle: canHandleIntent('PlayGenreIntent'),
+  async handle(handlerInput) {
+    const genre = getSlotValue(handlerInput, 'genre');
+    if (!genre) return handlerInput.responseBuilder.speak('Which genre should I play?').getResponse();
+    const result = await plex.resolveGenre(genre);
+    return playResult(handlerInput, result, { shuffle: true, spokenTitle: genre });
+  }
+};
+
+export const PlayDecadeIntentHandler = {
+  canHandle: canHandleIntent('PlayDecadeIntent'),
+  async handle(handlerInput) {
+    const decade = getSlotValue(handlerInput, 'decade');
+    if (!decade) return handlerInput.responseBuilder.speak('Which decade should I rummage through?').getResponse();
+    const result = await plex.resolveDecade(decade);
+    return playResult(handlerInput, result, { shuffle: true, spokenTitle: decade });
+  }
+};
+
+export const PlayRadioIntentHandler = {
+  canHandle: canHandleIntent('PlayRadioIntent'),
+  async handle(handlerInput) {
+    const query = getSlotValue(handlerInput, 'query');
+    let seedTrack = null;
+
+    if (query) {
+      const seed = await plex.resolve('track', query);
+      seedTrack = seed?.tracks?.[0] ?? null;
+      if (!seedTrack) {
+        return handlerInput.responseBuilder
+          .speak(respond('notFound', { query }))
+          .getResponse();
+      }
+    } else {
+      const { queue, response } = await getQueueOrSpeak(handlerInput);
+      if (response) return response;
+      seedTrack = getTrackAt(queue);
     }
 
-    const queue = createQueue(result.tracks.slice(0, config.maxQueueTracks), {
-      sourceTitle: result.title,
-      sourceKind: result.kind,
-      ttlHours: config.queueTtlHours
+    const result = await plex.radioForTrack(seedTrack);
+    return playResult(handlerInput, result, {
+      speechKey: 'radio',
+      spokenTitle: seedTrack.title
     });
-    if (shuffle) setShuffle(queue, true);
-    await queueStore.put(getUserId(handlerInput), queue);
-
-    return handlerInput.responseBuilder
-      .speak(`${shuffle ? 'Shuffling' : 'Playing'} ${result.title} from Plex.`)
-      .addDirective(playDirective({ queue, position: queue.index, plex }))
-      .withShouldEndSession(true)
-      .getResponse();
   }
 };
 
@@ -75,6 +136,7 @@ export const PauseIntentHandler = {
   canHandle: canHandleIntent('AMAZON.PauseIntent'),
   handle(handlerInput) {
     return handlerInput.responseBuilder
+      .speak(respond('pause'))
       .addDirective(stopDirective())
       .withShouldEndSession(true)
       .getResponse();
@@ -87,7 +149,8 @@ export const ResumeIntentHandler = {
     const { queue, response } = await getQueueOrSpeak(handlerInput);
     if (response) return response;
     return handlerInput.responseBuilder
-      .addDirective(playDirective({ queue, position: queue.index, plex }))
+      .speak(respond('resume'))
+      .addDirective(await playDirective({ queue, position: queue.index, plex }))
       .withShouldEndSession(true)
       .getResponse();
   }
@@ -100,11 +163,12 @@ export const NextIntentHandler = {
     const { queue, response } = await getQueueOrSpeak(handlerInput);
     if (response) return response;
     const nextIndex = getNextIndex(queue);
-    if (nextIndex == null) return handlerInput.responseBuilder.speak('That was the last track.').getResponse();
+    if (nextIndex == null) return handlerInput.responseBuilder.speak('That was the last track. The queue has nothing left to give.').getResponse();
     moveTo(queue, nextIndex);
     await queueStore.put(userId, queue);
     return handlerInput.responseBuilder
-      .addDirective(playDirective({ queue, position: queue.index, plex }))
+      .speak(respond('next'))
+      .addDirective(await playDirective({ queue, position: queue.index, plex }))
       .withShouldEndSession(true)
       .getResponse();
   }
@@ -117,11 +181,12 @@ export const PreviousIntentHandler = {
     const { queue, response } = await getQueueOrSpeak(handlerInput);
     if (response) return response;
     const previousIndex = getPreviousIndex(queue);
-    if (previousIndex == null) return handlerInput.responseBuilder.speak('That is the first track.').getResponse();
+    if (previousIndex == null) return handlerInput.responseBuilder.speak('That is the first track. Time itself refuses to go back any further.').getResponse();
     moveTo(queue, previousIndex);
     await queueStore.put(userId, queue);
     return handlerInput.responseBuilder
-      .addDirective(playDirective({ queue, position: queue.index, plex }))
+      .speak(respond('previous'))
+      .addDirective(await playDirective({ queue, position: queue.index, plex }))
       .withShouldEndSession(true)
       .getResponse();
   }
@@ -137,7 +202,8 @@ export const StartOverIntentHandler = {
     queue.enqueuedIndex = null;
     await queueStore.put(userId, queue);
     return handlerInput.responseBuilder
-      .addDirective(playDirective({ queue, position: queue.index, plex, offsetMs: 0 }))
+      .speak(respond('startOver'))
+      .addDirective(await playDirective({ queue, position: queue.index, plex, offsetMs: 0 }))
       .withShouldEndSession(true)
       .getResponse();
   }
@@ -152,8 +218,8 @@ export const ShuffleOnIntentHandler = {
     setShuffle(queue, true);
     await queueStore.put(userId, queue);
     return handlerInput.responseBuilder
-      .speak('Shuffle is on.')
-      .addDirective(playDirective({ queue, position: queue.index, plex }))
+      .speak(respond('shuffleOn'))
+      .addDirective(await playDirective({ queue, position: queue.index, plex }))
       .withShouldEndSession(true)
       .getResponse();
   }
@@ -168,14 +234,14 @@ export const ShuffleOffIntentHandler = {
     setShuffle(queue, false);
     await queueStore.put(userId, queue);
     return handlerInput.responseBuilder
-      .speak('Shuffle is off.')
-      .addDirective(playDirective({ queue, position: queue.index, plex }))
+      .speak(respond('shuffleOff'))
+      .addDirective(await playDirective({ queue, position: queue.index, plex }))
       .withShouldEndSession(true)
       .getResponse();
   }
 };
 
-function toggleQueueSetting(intentName, property, value, speech) {
+function toggleQueueSetting(intentName, property, value, speechKey) {
   return {
     canHandle: canHandleIntent(intentName),
     async handle(handlerInput) {
@@ -184,13 +250,13 @@ function toggleQueueSetting(intentName, property, value, speech) {
       if (response) return response;
       queue[property] = value;
       await queueStore.put(userId, queue);
-      return handlerInput.responseBuilder.speak(speech).getResponse();
+      return handlerInput.responseBuilder.speak(respond(speechKey)).getResponse();
     }
   };
 }
 
-export const LoopOnIntentHandler = toggleQueueSetting('AMAZON.LoopOnIntent', 'loop', true, 'Loop is on.');
-export const LoopOffIntentHandler = toggleQueueSetting('AMAZON.LoopOffIntent', 'loop', false, 'Loop is off.');
+export const LoopOnIntentHandler = toggleQueueSetting('AMAZON.LoopOnIntent', 'loop', true, 'loopOn');
+export const LoopOffIntentHandler = toggleQueueSetting('AMAZON.LoopOffIntent', 'loop', false, 'loopOff');
 
 export const NowPlayingIntentHandler = {
   canHandle: canHandleIntent('NowPlayingIntent'),
@@ -199,7 +265,106 @@ export const NowPlayingIntentHandler = {
     if (response) return response;
     const track = getTrackAt(queue);
     return handlerInput.responseBuilder
-      .speak(`This is ${track.title} by ${track.artist}, from the album ${track.album}.`)
+      .speak(respond('nowPlaying', track))
+      .getResponse();
+  }
+};
+
+export const LikeTrackIntentHandler = {
+  canHandle: canHandleIntent('LikeTrackIntent'),
+  async handle(handlerInput) {
+    const { queue, response } = await getQueueOrSpeak(handlerInput);
+    if (response) return response;
+    const track = getTrackAt(queue);
+    await plex.rateTrack(track, 10);
+    await queueStore.put(getUserId(handlerInput), queue);
+    return handlerInput.responseBuilder
+      .speak(respond('liked', { title: track.title }))
+      .getResponse();
+  }
+};
+
+export const DislikeTrackIntentHandler = {
+  canHandle: canHandleIntent('DislikeTrackIntent'),
+  async handle(handlerInput) {
+    const userId = getUserId(handlerInput);
+    const { queue, response } = await getQueueOrSpeak(handlerInput);
+    if (response) return response;
+    const track = getTrackAt(queue);
+    await plex.rateTrack(track, 0);
+    const nextIndex = getNextIndex(queue);
+    const builder = handlerInput.responseBuilder.speak(respond('disliked', { title: track.title }));
+    if (nextIndex != null) {
+      moveTo(queue, nextIndex);
+      builder.addDirective(await playDirective({ queue, position: queue.index, plex }));
+    } else {
+      builder.addDirective(stopDirective());
+    }
+    await queueStore.put(userId, queue);
+    return builder.withShouldEndSession(true).getResponse();
+  }
+};
+
+export const RateTrackIntentHandler = {
+  canHandle: canHandleIntent('RateTrackIntent'),
+  async handle(handlerInput) {
+    const rating = Number(getSlotValue(handlerInput, 'rating'));
+    if (!Number.isFinite(rating) || rating < 0 || rating > 10) {
+      return handlerInput.responseBuilder.speak('Give me a rating from zero to ten. I can judge, but I cannot violate basic arithmetic.').getResponse();
+    }
+    const { queue, response } = await getQueueOrSpeak(handlerInput);
+    if (response) return response;
+    const track = getTrackAt(queue);
+    const savedRating = await plex.rateTrack(track, rating);
+    await queueStore.put(getUserId(handlerInput), queue);
+    return handlerInput.responseBuilder
+      .speak(respond('rated', { title: track.title, rating: savedRating }))
+      .getResponse();
+  }
+};
+
+export const AddToPlaylistIntentHandler = {
+  canHandle: canHandleIntent('AddToPlaylistIntent'),
+  async handle(handlerInput) {
+    const playlistName = getSlotValue(handlerInput, 'playlist');
+    if (!playlistName) return handlerInput.responseBuilder.speak('Which playlist should receive this irresistible little number?').getResponse();
+    const { queue, response } = await getQueueOrSpeak(handlerInput);
+    if (response) return response;
+    const track = getTrackAt(queue);
+    const result = await plex.addTrackToPlaylist(track, playlistName);
+    if (!result.ok) {
+      if (result.reason === 'disabled') {
+        return handlerInput.responseBuilder.speak('Playlist writes are disabled. The jukebox has been fitted with a chastity belt.').getResponse();
+      }
+      return handlerInput.responseBuilder
+        .speak(respond('playlistMissing', { playlist: result.title || playlistName }))
+        .getResponse();
+    }
+    return handlerInput.responseBuilder
+      .speak(respond('playlistAdded', { title: track.title, playlist: result.title }))
+      .getResponse();
+  }
+};
+
+export const DiagnosticsIntentHandler = {
+  canHandle: canHandleIntent('DiagnosticsIntent'),
+  async handle(handlerInput) {
+    const [health, queue] = await Promise.all([
+      plex.healthCheck(),
+      queueStore.get(getUserId(handlerInput))
+    ]);
+    const plexStatus = health.ok
+      ? `online in ${health.latencyMs} milliseconds`
+      : 'offline or refusing to cooperate';
+    const lyricsStatus = config.lyricsMode === 'off' ? 'off' : config.lyricsMode.replace('-', ' plus ');
+    const playlistStatus = config.allowPlaylistWrites ? 'enabled' : 'disabled';
+    return handlerInput.responseBuilder
+      .speak(respond('status', {
+        plexStatus,
+        queueCount: queue?.tracks?.length ?? 0,
+        lyricsStatus,
+        playlistStatus
+      }))
       .getResponse();
   }
 };
