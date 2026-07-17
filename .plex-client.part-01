@@ -1,0 +1,260 @@
+import { randomUUID } from 'node:crypto';
+import { XMLParser } from 'fast-xml-parser';
+import { lrcToWebVtt } from './lyrics.js';
+import { bestMatch, matchScore } from './matching.js';
+
+const MEDIA_TYPES = {
+  artist: 8,
+  album: 9,
+  track: 10
+};
+const DIRECT_CONTAINERS = new Set(['mp3', 'aac', 'm4a', 'mp4']);
+const DIRECT_CODECS = new Set(['mp3', 'aac']);
+const LIBRARY_IDENTIFIER = 'com.plexapp.plugins.library';
+
+export function redactPlexSecrets(value) {
+  return String(value ?? '')
+    .replace(/([?&]X-Plex-Token=)[^&#\s]+/gi, '$1[REDACTED]')
+    .replace(/(X-Plex-Token:\s*)[^\s,}]+/gi, '$1[REDACTED]');
+}
+
+function asArray(value) {
+  if (value == null) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function containerItems(container) {
+  return [
+    ...asArray(container?.Directory),
+    ...asArray(container?.Track),
+    ...asArray(container?.Playlist),
+    ...asArray(container?.Metadata)
+  ];
+}
+
+function firstPart(item) {
+  for (const media of asArray(item?.Media)) {
+    const part = asArray(media?.Part)[0];
+    if (part?.key) return { media, part };
+  }
+  return null;
+}
+
+function lyricStream(item) {
+  for (const media of asArray(item?.Media)) {
+    for (const part of asArray(media?.Part)) {
+      for (const stream of asArray(part?.Stream)) {
+        const streamType = Number.parseInt(stream.streamType ?? '0', 10);
+        const codec = String(stream.codec || stream.format || '').toLowerCase();
+        if (streamType !== 4) continue;
+        return {
+          key: stream.key || (stream.id ? `/library/streams/${stream.id}` : null),
+          codec,
+          timed: String(stream.timed ?? '') === '1' || codec === 'lrc'
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function limitText(value, fallback, max = 250) {
+  const text = String(value || fallback).trim();
+  return text.slice(0, max) || fallback;
+}
+
+function dedupeTracks(tracks) {
+  const seen = new Set();
+  return tracks.filter((track) => {
+    if (!track || seen.has(track.ratingKey)) return false;
+    seen.add(track.ratingKey);
+    return true;
+  });
+}
+
+function parseSongArtistQuery(query) {
+  const match = /^(.+?)\s+by\s+(.+)$/i.exec(String(query ?? '').trim());
+  if (!match) return null;
+  return { title: match[1].trim(), artist: match[2].trim() };
+}
+
+function normalizeDecade(value) {
+  const normalized = String(value ?? '').trim().toLowerCase().replace(/[’']/g, '');
+  const words = {
+    twenties: 2020,
+    'two thousands': 2000,
+    'two thousand': 2000,
+    'aughts': 2000,
+    'noughties': 2000,
+    nineties: 1990,
+    eighties: 1980,
+    seventies: 1970,
+    sixties: 1960,
+    fifties: 1950,
+    forties: 1940
+  };
+  if (words[normalized]) return words[normalized];
+
+  const fourDigit = /(19|20)\d0/.exec(normalized);
+  if (fourDigit) return Number.parseInt(fourDigit[0], 10);
+
+  const short = /^(\d{2})s?$/.exec(normalized.replace(/\s/g, ''));
+  if (short) {
+    const number = Number.parseInt(short[1], 10);
+    return number <= 29 ? 2000 + number : 1900 + number;
+  }
+  return null;
+}
+
+export class PlexClient {
+  constructor({
+    baseUrl,
+    token,
+    streamBaseUrl,
+    musicLibrary = 'Music',
+    maxTracks = 150,
+    maxAudioBitrate = 192,
+    transcodePolicy = 'auto',
+    requestTimeoutMs = 10_000,
+    lyricsMode = 'plex-lrclib',
+    lyricsRequestTimeoutMs = 2500,
+    radioTrackLimit = 50,
+    allowPlaylistWrites = true,
+    fetchImpl = fetch
+  }) {
+    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.token = token;
+    this.streamBaseUrl = streamBaseUrl.replace(/\/$/, '');
+    this.musicLibrary = musicLibrary;
+    this.maxTracks = maxTracks;
+    this.maxAudioBitrate = maxAudioBitrate;
+    this.transcodePolicy = transcodePolicy;
+    this.requestTimeoutMs = requestTimeoutMs;
+    this.lyricsMode = lyricsMode;
+    this.lyricsRequestTimeoutMs = lyricsRequestTimeoutMs;
+    this.radioTrackLimit = radioTrackLimit;
+    this.allowPlaylistWrites = allowPlaylistWrites;
+    this.fetchImpl = fetchImpl;
+    this.musicSectionKey = null;
+    this.serverIdentity = null;
+    this.lyricsCache = new Map();
+    this.parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '',
+      parseAttributeValue: false,
+      trimValues: true
+    });
+  }
+
+  headers(accept = 'application/xml') {
+    return {
+      Accept: accept,
+      'X-Plex-Token': this.token,
+      'X-Plex-Product': 'Alexa Plex Music',
+      'X-Plex-Version': '2.0.0',
+      'X-Plex-Device': 'Alexa',
+      'X-Plex-Client-Identifier': 'alexa-plex-proxy-lambda'
+    };
+  }
+
+  async fetchPlex(path, searchParams = {}, { method = 'GET', accept = 'application/xml', timeoutMs } = {}) {
+    const url = new URL(path, `${this.baseUrl}/`);
+    for (const [key, value] of Object.entries(searchParams)) {
+      if (value !== undefined && value !== null && value !== '') {
+        url.searchParams.set(key, String(value));
+      }
+    }
+
+    const response = await this.fetchImpl(url, {
+      method,
+      headers: this.headers(accept),
+      signal: AbortSignal.timeout(timeoutMs ?? this.requestTimeoutMs)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Plex request failed with status ${response.status}`);
+    }
+    return response;
+  }
+
+  async request(path, searchParams = {}, { method = 'GET' } = {}) {
+    const response = await this.fetchPlex(path, searchParams, { method });
+    if (method === 'HEAD' || response.status === 204) return {};
+    const xml = await response.text();
+    if (!xml.trim()) return {};
+    return this.parser.parse(xml)?.MediaContainer ?? {};
+  }
+
+  async requestText(path, searchParams = {}, timeoutMs = this.lyricsRequestTimeoutMs) {
+    const response = await this.fetchPlex(path, searchParams, {
+      accept: 'text/plain, text/lrc, */*',
+      timeoutMs
+    });
+    return response.text();
+  }
+
+  async getMusicSectionKey() {
+    if (this.musicSectionKey) return this.musicSectionKey;
+
+    const container = await this.request('/library/sections');
+    const sections = asArray(container.Directory);
+    const exact = sections.find(
+      (item) => item.type === 'artist'
+        && String(item.title).toLowerCase() === this.musicLibrary.toLowerCase()
+    );
+    const section = exact ?? sections.find((item) => item.type === 'artist');
+
+    if (!section?.key) {
+      throw new Error(`No Plex music library found. Expected '${this.musicLibrary}'.`);
+    }
+
+    this.musicSectionKey = String(section.key);
+    return this.musicSectionKey;
+  }
+
+  async getServerIdentity() {
+    if (this.serverIdentity) return this.serverIdentity;
+    const identity = await this.request('/identity');
+    const machineIdentifier = identity.machineIdentifier || identity.machineidentifier;
+    if (!machineIdentifier) throw new Error('Plex did not return a machine identifier');
+    this.serverIdentity = {
+      machineIdentifier: String(machineIdentifier),
+      friendlyName: identity.friendlyName || identity.friendlyname || 'Plex',
+      version: identity.version || null
+    };
+    return this.serverIdentity;
+  }
+
+  async healthCheck() {
+    const startedAt = Date.now();
+    try {
+      const identity = await this.request('/identity');
+      const machineIdentifier = identity.machineIdentifier || identity.machineidentifier;
+      if (!machineIdentifier) throw new Error('Plex did not return a machine identifier');
+      this.serverIdentity = {
+        machineIdentifier: String(machineIdentifier),
+        friendlyName: identity.friendlyName || identity.friendlyname || 'Plex',
+        version: identity.version || null
+      };
+      return {
+        ok: true,
+        latencyMs: Date.now() - startedAt,
+        friendlyName: this.serverIdentity.friendlyName,
+        version: this.serverIdentity.version
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        latencyMs: Date.now() - startedAt,
+        error: redactPlexSecrets(error.message)
+      };
+    }
+  }
+
+  async searchLibrary(kind, query, limit = 75) {
+    const sectionKey = await this.getMusicSectionKey();
+    const type = MEDIA_TYPES[kind];
+    if (!type) throw new Error(`Unsupported Plex media kind: ${kind}`);
+
+    let container = await this.request(`/library/sections/${sectionKey}/all`, {
+      type,
