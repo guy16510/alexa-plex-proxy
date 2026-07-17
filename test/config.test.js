@@ -10,13 +10,31 @@ const valid = {
   QUEUE_TABLE: 'queues'
 };
 
-test('loads defaults for a valid serverless configuration', () => {
+test('loads enhanced defaults for a valid serverless configuration', () => {
   const config = loadConfig(valid);
   assert.equal(config.maxQueueTracks, 150);
   assert.equal(config.transcodePolicy, 'auto');
+  assert.equal(config.lyricsMode, 'plex-lrclib');
+  assert.equal(config.personalityMode, 'spicy');
+  assert.equal(config.radioTrackLimit, 50);
+  assert.equal(config.allowPlaylistWrites, true);
 });
 
-test('rejects non-HTTPS Plex and stream endpoints', () => {
+test('supports clean mode, Plex-only lyrics, and disabled playlist writes', () => {
+  const config = loadConfig({
+    ...valid,
+    PERSONALITY_MODE: 'clean',
+    LYRICS_MODE: 'plex',
+    ALLOW_PLAYLIST_WRITES: 'false'
+  });
+  assert.equal(config.personalityMode, 'clean');
+  assert.equal(config.lyricsMode, 'plex');
+  assert.equal(config.allowPlaylistWrites, false);
+});
+
+test('rejects invalid endpoints and feature flags', () => {
   assert.throws(() => loadConfig({ ...valid, PLEX_URL: 'http://example.com' }), /HTTPS/);
   assert.throws(() => loadConfig({ ...valid, STREAM_BASE_URL: 'http://example.com' }), /HTTPS/);
+  assert.throws(() => loadConfig({ ...valid, PERSONALITY_MODE: 'feral' }), /PERSONALITY_MODE/);
+  assert.throws(() => loadConfig({ ...valid, ALLOW_PLAYLIST_WRITES: 'perhaps' }), /true or false/);
 });
