@@ -23,6 +23,9 @@ const requiredIntents = [
   'DislikeTrackIntent',
   'RateTrackIntent',
   'AddToPlaylistIntent',
+  'ShowHomeIntent',
+  'ShowQueueIntent',
+  'ShowLyricsIntent',
   'DiagnosticsIntent'
 ];
 const names = new Set(model.intents.map((intent) => intent.name));
