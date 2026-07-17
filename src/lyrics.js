@@ -1,5 +1,6 @@
 const LRC_TIMESTAMP = /\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
 const ENHANCED_TIMESTAMP = /<(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?>/g;
+const WEBVTT_TIMESTAMP = /(?:(\d{1,2}):)?(\d{2}):(\d{2})\.(\d{3})/;
 
 function fractionToMilliseconds(value = '') {
   if (!value) return 0;
@@ -10,6 +11,15 @@ function fractionToMilliseconds(value = '') {
 
 function timestampToMilliseconds(minutes, seconds, fraction) {
   return (Number(minutes) * 60_000) + (Number(seconds) * 1000) + fractionToMilliseconds(fraction);
+}
+
+function webVttTimestampToMilliseconds(value) {
+  const match = WEBVTT_TIMESTAMP.exec(String(value ?? '').trim());
+  if (!match) return null;
+  return (Number(match[1] || 0) * 3_600_000)
+    + (Number(match[2]) * 60_000)
+    + (Number(match[3]) * 1000)
+    + Number(match[4]);
 }
 
 function sanitizeCueText(value) {
@@ -80,4 +90,55 @@ export function lrcToWebVtt(value, { durationMs = 0, maxChars = 50_000 } = {}) {
   }
 
   return output.length > 2 ? `${output.join('\n')}\n` : null;
+}
+
+export function parseWebVtt(value) {
+  const lines = String(value ?? '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n');
+  const cues = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const timing = /^\s*(\S+)\s+-->\s+(\S+)/.exec(lines[index]);
+    if (!timing) continue;
+    const startMs = webVttTimestampToMilliseconds(timing[1]);
+    const endMs = webVttTimestampToMilliseconds(timing[2]);
+    if (startMs == null || endMs == null) continue;
+    const textLines = [];
+    for (index += 1; index < lines.length && lines[index].trim(); index += 1) {
+      textLines.push(lines[index].trim());
+    }
+    const text = sanitizeCueText(textLines.join(' '));
+    if (text) cues.push({ startMs, endMs, text });
+  }
+  return cues;
+}
+
+export function shiftWebVtt(value, offsetMs = 0) {
+  const parsedOffset = Math.max(-30_000, Math.min(30_000, Number(offsetMs) || 0));
+  if (!parsedOffset) return value;
+  const cues = parseWebVtt(value);
+  if (cues.length === 0) return value;
+  const output = ['WEBVTT', ''];
+  for (const cue of cues) {
+    const startMs = Math.max(0, cue.startMs + parsedOffset);
+    const endMs = Math.max(startMs + 250, cue.endMs + parsedOffset);
+    output.push(`${formatWebVttTimestamp(startMs)} --> ${formatWebVttTimestamp(endMs)}\n${cue.text}\n`);
+  }
+  return `${output.join('\n')}\n`;
+}
+
+export function lyricWindow(cues, positionMs = 0) {
+  if (!Array.isArray(cues) || cues.length === 0) {
+    return { previousLine: '', currentLine: '', nextLine: '', index: -1 };
+  }
+  const position = Math.max(0, Number(positionMs) || 0);
+  let index = cues.findIndex((cue) => position >= cue.startMs && position < cue.endMs);
+  if (index < 0) {
+    index = cues.findLastIndex((cue) => cue.startMs <= position);
+  }
+  if (index < 0) index = 0;
+  return {
+    previousLine: cues[index - 1]?.text || '',
+    currentLine: cues[index]?.text || '',
+    nextLine: cues[index + 1]?.text || '',
+    index
+  };
 }
