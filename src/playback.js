@@ -1,6 +1,6 @@
 import { getTrackAt, tokenFor } from './queue.js';
 
-export function playDirective({
+export async function playDirective({
   queue,
   position,
   plex,
@@ -23,17 +23,29 @@ export function playDirective({
     stream.expectedPreviousToken = expectedPreviousToken;
   }
 
+  try {
+    const captions = await plex.getTimedLyrics(track);
+    if (captions) {
+      stream.captionData = {
+        type: 'WEBVTT',
+        content: captions
+      };
+    }
+  } catch (error) {
+    console.warn('Lyrics lookup failed; continuing without captions', {
+      ratingKey: track.ratingKey,
+      message: error.message
+    });
+  }
+
+  const artSources = plex.buildArtworkSources(track, { background: false });
+  const backgroundSources = plex.buildArtworkSources(track, { background: true });
   const metadata = {
     title: track.title,
-    subtitle: track.artist
+    subtitle: [track.artist, track.album].filter(Boolean).join(' • '),
+    art: { sources: artSources },
+    backgroundImage: { sources: backgroundSources }
   };
-  const artUrl = plex.buildArtworkUrl(track);
-  if (artUrl) {
-    metadata.art = {
-      contentDescription: track.album,
-      sources: [{ url: artUrl }]
-    };
-  }
 
   return {
     type: 'AudioPlayer.Play',
