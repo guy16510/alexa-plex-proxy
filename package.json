@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Private serverless Alexa skill for streaming music from Plex",
+  "description": "Private enhanced serverless Alexa skill for streaming music from Plex",
   "scripts": {
     "start": "node src/index.js",
     "test": "node --test test/*.test.js",
-    "check": "node --check src/*.js && node --check scripts/*.mjs && node -e \"JSON.parse(require('node:fs').readFileSync('interaction-model/en-US.json','utf8'))\"",
+    "check": "node --check src/*.js src/handlers/*.js scripts/*.mjs && node -e \"JSON.parse(require('node:fs').readFileSync('interaction-model/en-US.json','utf8'))\"",
     "validate:model": "node scripts/validate-model.mjs",
     "discover:plex": "node scripts/discover-plex.mjs",
     "deploy": "node scripts/deploy.mjs"
