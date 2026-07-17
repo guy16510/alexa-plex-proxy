@@ -1,6 +1,6 @@
 import Alexa from 'ask-sdk-core';
 import { getUserId } from './request-utils.js';
-import { queueStore } from './runtime.js';
+import { queueStore, respond } from './runtime.js';
 
 export function canHandleIntent(name) {
   return (handlerInput) =>
@@ -18,7 +18,7 @@ export async function getQueueOrSpeak(handlerInput) {
     return {
       queue: null,
       response: handlerInput.responseBuilder
-        .speak('There is nothing queued. Ask Server Music to play an artist, song, album, or playlist.')
+        .speak(respond('emptyQueue'))
         .getResponse()
     };
   }
