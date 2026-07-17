@@ -16,6 +16,8 @@ import {
   PreviousIntentHandler,
   RateTrackIntentHandler,
   ResumeIntentHandler,
+  SeekBackwardIntentHandler,
+  SeekForwardIntentHandler,
   ShuffleOffIntentHandler,
   ShuffleOnIntentHandler,
   StartOverIntentHandler
@@ -56,6 +58,8 @@ export const handler = Alexa.SkillBuilders.custom()
     NextIntentHandler,
     PreviousIntentHandler,
     StartOverIntentHandler,
+    SeekForwardIntentHandler,
+    SeekBackwardIntentHandler,
     ShuffleOnIntentHandler,
     ShuffleOffIntentHandler,
     LoopOnIntentHandler,
