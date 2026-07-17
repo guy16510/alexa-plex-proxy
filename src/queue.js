@@ -22,6 +22,7 @@ export function createQueue(tracks, { sourceTitle = '', sourceKind = 'any', ttlH
     order: tracks.map((_, index) => index),
     index: 0,
     offsetMs: 0,
+    lyricsOffsetMs: 0,
     shuffle: false,
     loop: false,
     enqueuedIndex: null,
