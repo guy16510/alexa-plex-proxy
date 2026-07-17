@@ -1,4 +1,4 @@
-name: Apply enhanced player changes
+name: Assemble reviewed Plex client
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  assemble:
     runs-on: ubuntu-latest
     steps:
       - name: Check out branch
@@ -17,25 +17,20 @@ jobs:
         with:
           ref: feature/richer-player-and-personality
           fetch-depth: 0
-      - name: Apply reviewed payload
+      - name: Assemble and verify reviewed source
         shell: bash
         run: |
-          if [[ ! -f .enhancement-payload.part-05 ]]; then
-            echo "Payload is not complete yet."
-            exit 0
-          fi
-          cat .enhancement-payload.part-* > /tmp/enhancements.b64
-          base64 --decode /tmp/enhancements.b64 > /tmp/enhancements.tar.gz
-          echo "10cca3edd410e0b10b7b3d78b562bc3f689ec7f59e0c1a30d15826588eaac4da  /tmp/enhancements.tar.gz" | sha256sum --check
-          tar -xzf /tmp/enhancements.tar.gz
-          rm .enhancement-payload.part-*
+          test -f .plex-client.part-03 || exit 0
+          cat .plex-client.part-01 .plex-client.part-02 .plex-client.part-03 > src/plex-client.js
+          echo "7cbdbfc5ddeef67beaf0ad923a9ddfaaedcf8acfa814f425318e909af73bd503  src/plex-client.js" | sha256sum --check
+          rm -f .enhancement-payload.part-* .plex-client.part-*
           rm .github/workflows/apply-enhancements.yml
+          npm ci
+          npm test
+          npm run check
+          npm run validate:model
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-          git commit -m "Enhance Alexa player, lyrics, controls, and personality"
+          git commit -m "Finish enhanced Plex player implementation"
           git push origin HEAD:feature/richer-player-and-personality
