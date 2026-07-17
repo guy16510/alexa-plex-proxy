@@ -1,8 +1,8 @@
 import Alexa from 'ask-sdk-core';
 import { canHandleIntent, emptyResponse } from '../handler-utils.js';
 import { stopDirective } from '../playback.js';
-import { getApplicationId, isAudioPlayerRequest } from '../request-utils.js';
-import { config } from '../runtime.js';
+import { getApplicationId, isPlaybackOnlyRequest } from '../request-utils.js';
+import { config, respond } from '../runtime.js';
 import { redactPlexSecrets } from '../plex-client.js';
 
 export const ValidateApplicationIdInterceptor = {
@@ -19,7 +19,7 @@ export const LaunchRequestHandler = {
   },
   handle(handlerInput) {
     return handlerInput.responseBuilder
-      .speak('Server Music is ready. Say play Queen, play the album The Wall, or play the song Everlong.')
+      .speak(respond('launch'))
       .reprompt('What should I play from Plex?')
       .getResponse();
   }
@@ -34,6 +34,7 @@ export const StopIntentHandler = {
   },
   handle(handlerInput) {
     return handlerInput.responseBuilder
+      .speak(respond('stopped'))
       .addDirective(stopDirective())
       .withShouldEndSession(true)
       .getResponse();
@@ -44,7 +45,7 @@ export const HelpIntentHandler = {
   canHandle: canHandleIntent('AMAZON.HelpIntent'),
   handle(handlerInput) {
     return handlerInput.responseBuilder
-      .speak('Say, play songs by Queen, play the album The Wall, or play the song Everlong.')
+      .speak(respond('help'))
       .reprompt('What should I play?')
       .getResponse();
   }
@@ -54,7 +55,7 @@ export const FallbackIntentHandler = {
   canHandle: canHandleIntent('AMAZON.FallbackIntent'),
   handle(handlerInput) {
     return handlerInput.responseBuilder
-      .speak('I can play an artist, album, song, or Plex playlist.')
+      .speak(respond('fallback'))
       .reprompt('Try saying, play songs by Queen.')
       .getResponse();
   }
@@ -79,9 +80,9 @@ export const ErrorHandler = {
       message: redactPlexSecrets(error.message),
       requestType: Alexa.getRequestType(handlerInput.requestEnvelope)
     });
-    if (isAudioPlayerRequest(handlerInput)) return emptyResponse(handlerInput);
+    if (isPlaybackOnlyRequest(handlerInput)) return emptyResponse(handlerInput);
     return handlerInput.responseBuilder
-      .speak('Server Music hit an error. Check the Lambda logs and Plex remote access.')
+      .speak(respond('error'))
       .getResponse();
   }
 };
