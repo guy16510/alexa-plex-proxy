@@ -5,17 +5,17 @@ A private, fully serverless Alexa custom skill for playing and managing music fr
 There is no Docker container, Unraid application, reverse proxy, custom domain, or always-on middleware to manage.
 
 ```text
-Alexa voice and screen controls
-             |
-             v
+Alexa voice, touch, and screen controls
+                 |
+                 v
 AWS Lambda  -----> Plex catalog, ratings, playlists, lyrics, and timeline APIs
-             |
-             v
+                 |
+                 v
 DynamoDB queue state and permanent track bans
 
 Alexa audio and artwork requests
-             |
-             v
+                 |
+                 v
 CloudFront HTTPS :443 --X-Plex-Token header--> Plex Remote Access HTTPS :32400
 ```
 
@@ -26,11 +26,18 @@ CloudFront injects the Plex token into origin requests. Audio and artwork URLs s
 - Play a song, artist, album, audio playlist, genre, mood, style, or decade
 - Phonetic and typo-tolerant matching for Alexa mistakes such as `banson boon` matching Benson Boone
 - Article and spelling normalization, including `Neighborhood` matching The Neighbourhood
+- Plex-only confidence ranking that plays a clear winner immediately and shows choices only for genuinely close matches
 - Cached broad-catalog fallback when Plex exact search returns nothing useful
+- Responsive APL home screen built from Plex albums, favorites, and playlists
+- Echo Show 5-specific `hubLandscapeSmall` layouts instead of relying on scaled-down large-screen designs
+- Touch queue with direct track selection, previous, next, seek, favorite, ban, radio, and lyrics controls
+- Karaoke-style synchronized lyric screen with previous, current, and next lines
+- Manual plus or minus one-second lyric synchronization that also updates AudioPlayer captions
+- Blurred Plex artwork, dark gradients, large album art, and readable across-the-room typography
 - Shuffle, loop, pause, resume, next, previous, start over, skip ahead, and rewind
 - Physical and on-screen Playback Controller buttons
 - Continuous queue playback through `AudioPlayer.PlaybackNearlyFinished`
-- Large square artwork plus full-screen background artwork on supported devices
+- Large square artwork plus full-screen background artwork on the stock Alexa audio player
 - Timed lyrics on compatible screen devices using WebVTT captions
 - Local Plex `.lrc` lyrics first, with optional LRCLIB fallback
 - Track radio using Plex sonic-nearest tracks with artist fallback
@@ -49,6 +56,9 @@ Alexa, ask Server Music to play artist Benson Boone
 Alexa, ask Server Music to play The Neighbourhood
 Alexa, ask Server Music to play Everlong by Foo Fighters
 Alexa, ask Server Music to shuffle my Road Trip playlist
+Alexa, ask Server Music to show my music
+Alexa, ask Server Music to show the queue
+Alexa, ask Server Music to show lyrics
 Alexa, ask Server Music to play more like this
 Alexa, ask Server Music to skip ahead thirty seconds
 Alexa, ask Server Music to rewind fifteen seconds
@@ -63,9 +73,19 @@ Alexa, resume
 
 A private custom skill still needs the invocation phrase, usually `ask Server Music`. It does not replace a first-party provider command such as `Alexa, play Queen`.
 
+## Visual experience
+
+On APL-capable Echo Show devices, opening Server Music displays a Plex-backed browse screen with recently added albums, highly rated tracks, and audio playlists. Every card is generated from the items actually present in Plex.
+
+The queue and lyric screens use the real Plex cover art as a blurred, darkened backdrop. The Echo Show 5 receives a dedicated compact layout with large touch targets. Touch events are sent back to Lambda through `Alexa.Presentation.APL.UserEvent` and use the same queue, ratings, bans, radio, and playback code as voice commands.
+
+Alexa still owns the persistent long-form AudioPlayer screen after playback starts. The skill continues to provide that screen with square album art, background artwork, title, artist, album, and synchronized WebVTT captions. The custom APL screens are used for browsing, ambiguity confirmation, queue management, and karaoke mode without replacing the reliable stock audio player.
+
 ## Matching behavior
 
 Plex search is attempted first. Weak or empty results fall back to a cached catalog scan with edit-distance, token, spelling, and phonetic scoring. Artist and album catalogs are cached in a warm Lambda for ten minutes. The track fallback is intentionally bounded so a bad transcription does not turn every request into an unbounded library scan.
+
+A single credible Plex result is played immediately, even when Alexa transcribes it badly. For example, if Benson Boone is the only plausible artist in the library, `banson boon` plays without asking a pointless question. A visual confirmation screen appears only when multiple Plex items have close confidence scores.
 
 Explicit track bans are stored separately from Plex ratings because Plex metadata does not consistently distinguish an unrated track from a zero rating. A thumbs-up or favorite on the current track removes its local ban.
 
@@ -78,6 +98,8 @@ The skill looks for synchronized lyrics in this order:
 
 Plain `.txt` lyrics are intentionally not fabricated into fake timing. Lyrics are omitted when a sufficiently strong synchronized match is unavailable.
 
+The karaoke screen schedules upcoming line changes directly in APL. The `Lyrics -1s` and `Lyrics +1s` controls persist an offset on the active queue, restart the same audio position with a new stream token, and shift both the custom screen and stock Alexa captions.
+
 Set `LYRICS_MODE=plex` to keep lyric lookup entirely inside Plex, or `LYRICS_MODE=off` to disable it. LRCLIB fallback sends track title, artist, album, and duration to LRCLIB.
 
 ## Personality
@@ -89,7 +111,8 @@ Set `LYRICS_MODE=plex` to keep lyric lookup entirely inside Plex, or `LYRICS_MOD
 - Sonic track radio works best when Plex sonic analysis is available. It falls back to songs by the same artist when it is not.
 - Playlist additions work only with an existing regular audio playlist. Smart playlists are read-only.
 - Genre, mood, style, decade, and rating quality depend on the metadata in the Plex music library.
-- Album artwork and timed lyrics display only on compatible Alexa devices with screens.
+- Album artwork, APL screens, and timed lyrics display only on compatible Alexa devices with screens.
+- APL section failures are isolated. If favorites fail to load, albums and playlists still render instead of breaking launch.
 
 ## Quick start
 
@@ -102,7 +125,13 @@ npm run discover:plex
 npm run deploy
 ```
 
-After every interaction-model change, import `interaction-model/en-US.json` into the Alexa Developer Console, save it, and rebuild the model. Enable both the Audio Player and Playback Controller interfaces.
+In the Alexa Developer Console, enable all three interfaces used by the skill:
+
+1. **Audio Player**
+2. **Playback Controller**
+3. **Alexa Presentation Language**, with all viewport profiles selected
+
+After every interaction-model change, import `interaction-model/en-US.json`, save it, and rebuild the model. The APL interface and rebuilt model are required for the browse, queue, lyrics, and visual confirmation commands.
 
 ## Configuration
 
@@ -141,7 +170,7 @@ sam validate --lint
 sam build
 ```
 
-The automated tests use mocked metadata and do not require Plex, Alexa, or AWS.
+The automated tests use mocked metadata and do not require Plex, Alexa, or AWS. The regression suite covers the existing AudioPlayer directive behavior, queue state, matching, permanent bans, APL layout generation, touch-event payloads, confidence thresholds, lyric timing shifts, and screen-data failure isolation.
 
 ## Prior art
 
