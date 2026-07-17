@@ -30,7 +30,10 @@ In the Alexa Developer Console:
 4. Save and build the interaction model.
 5. Enable the **Audio Player** interface.
 6. Enable the **Playback Controller** interface so screen and hardware play, pause, next, and previous controls reach the Lambda.
-7. Copy the Skill ID into `.env` as `ALEXA_SKILL_ID`.
+7. Enable **Alexa Presentation Language**.
+8. Select every APL viewport profile. The documents are responsive and include a dedicated `hubLandscapeSmall` layout for the Echo Show 5.
+9. Save the interfaces and build the model again.
+10. Copy the Skill ID into `.env` as `ALEXA_SKILL_ID`.
 
 The skill may remain in development mode. Store publication is not required for private use on devices attached to the same Amazon developer account.
 
@@ -60,7 +63,7 @@ RADIO_TRACK_LIMIT=50
 ALLOW_PLAYLIST_WRITES=true
 ```
 
-Use `LYRICS_MODE=plex` when no track metadata should be sent to LRCLIB. Use `PERSONALITY_MODE=clean` when the deliberately cheeky responses are inappropriate.
+Use `LYRICS_MODE=plex` when no track metadata should be sent to LRCLIB. Use `PERSONALITY_MODE=clean` when the deliberately vulgar responses are inappropriate.
 
 ## 5. Verify Plex discovery
 
@@ -94,7 +97,7 @@ It then deploys:
 - CloudWatch log group
 - Alexa invocation permission restricted to the configured Skill ID
 
-CloudFront injects the Plex token into origin requests through `X-Plex-Token`. The token is no longer included in the audio and artwork URLs returned to Alexa.
+CloudFront injects the Plex token into origin requests through `X-Plex-Token`. The token is not included in the audio and artwork URLs returned to Alexa.
 
 ## 7. Connect the Lambda endpoint
 
@@ -113,25 +116,40 @@ Alexa, ask Server Music to play the album The Wall
 Alexa, ask Server Music what is playing
 ```
 
-Then test enhanced functions:
+Then test matching and controls:
 
 ```text
-Alexa, ask Server Music to play Everlong by Foo Fighters
-Alexa, ask Server Music to play nineties music
-Alexa, ask Server Music to play alternative music
+Alexa, ask Server Music to play artist Banson Boon
+Alexa, ask Server Music to play Neighborhood
 Alexa, ask Server Music to play more like this
-Alexa, ask Server Music to like this song
-Alexa, ask Server Music to rate this track eight out of ten
+Alexa, ask Server Music to skip ahead thirty seconds
+Alexa, ask Server Music to favorite this song
+Alexa, ask Server Music to never play this again
 Alexa, ask Server Music to add this song to my Road Trip playlist
-Alexa, ask Server Music to run diagnostics
 ```
 
-On an Echo Show or another compatible screen device, confirm:
+On an Echo Show 5, test the visual flows:
 
-- Square album artwork appears
-- A full-screen background image appears
-- Synchronized lyrics appear when timed lyrics are available
-- Play, pause, next, and previous controls work
+```text
+Alexa, open Server Music
+Alexa, ask Server Music to show my music
+Alexa, ask Server Music to show the queue
+Alexa, ask Server Music to show lyrics
+```
+
+Confirm:
+
+- Recently added albums, favorites, and playlists come from the actual Plex library
+- The Echo Show 5 uses a compact native layout rather than a scaled large-screen layout
+- Plex artwork appears as large cover art and a blurred darkened background
+- Album, favorite, and playlist cards start the selected Plex item
+- Queue rows jump directly to the selected track
+- Previous, next, seek, favorite, ban, radio, and lyrics touch controls work
+- The karaoke screen advances synchronized lyric lines
+- `Lyrics -1s` and `Lyrics +1s` shift both custom lyrics and AudioPlayer captions without changing the audio position
+- Ambiguous low-confidence searches display no more than three Plex-only choices
+- A single clear library match, such as Benson Boone being the only plausible B artist, plays immediately
+- The stock Alexa AudioPlayer screen still shows album art, background art, metadata, captions, and playback controls
 
 ## 9. Upgrade an existing deployment
 
@@ -142,9 +160,14 @@ npm ci
 npm run deploy
 ```
 
-Then re-import `interaction-model/en-US.json`, build the model, and enable Playback Controller if it was not previously enabled.
+Then:
 
-The CloudFront distribution is updated in place to inject the Plex token at the origin. Existing DynamoDB queue data remains compatible.
+1. Re-import `interaction-model/en-US.json`.
+2. Enable Playback Controller if it was not previously enabled.
+3. Enable Alexa Presentation Language and all viewport profiles.
+4. Save interfaces and rebuild the model.
+
+Existing DynamoDB queue data remains compatible. Older queue records do not contain `lyricsOffsetMs`; the skill treats the missing value as zero.
 
 ## 10. Troubleshooting
 
@@ -154,15 +177,30 @@ Confirm the CloudFront distribution origin has an `X-Plex-Token` custom header a
 
 ### Artwork is missing
 
-Confirm the track has Plex artwork and that the CloudFront hostname can retrieve both the original image and `/photo/:/transcode` image path over HTTPS.
+Confirm the Plex item has artwork and that the CloudFront hostname can retrieve both the original image and `/photo/:/transcode` image path over HTTPS.
+
+### The custom visual screens do not appear
+
+- Confirm **Alexa Presentation Language** is enabled in the Alexa Developer Console.
+- Confirm all viewport profiles are selected.
+- Re-import the latest `interaction-model/en-US.json` and rebuild the model.
+- Confirm the request is coming from an APL-capable Echo Show. Speaker-only Echo devices intentionally keep the voice-only path.
+
+### The home screen is missing one section
+
+The screen isolates Plex section failures. For example, favorites can fail while recent albums and playlists still render. Check Lambda logs for the failed Plex request and confirm the Plex token can read ratings and playlists.
 
 ### Lyrics are missing
 
 - Confirm the local file is synchronized `.lrc`, not plain `.txt`.
 - Refresh the Plex library item after adding the sidecar file.
 - Confirm `LYRICS_MODE` is not `off`.
-- Check Lambda logs for `Plex lyrics lookup failed` or `LRCLIB lyrics lookup failed`.
+- Check Lambda logs for `Plex lyrics lookup failed`, `LRCLIB lyrics lookup failed`, or `Custom lyrics screen lookup failed`.
 - A lyric result is intentionally rejected when title, artist, or duration matching is weak.
+
+### Lyrics are early or late
+
+Open the lyric screen and use `Lyrics -1s` or `Lyrics +1s`. The offset is stored with the active queue and applied to both the APL line schedule and the WebVTT captions sent with the AudioPlayer directive.
 
 ### Track radio returns mostly one artist
 
@@ -172,9 +210,13 @@ Plex sonic-nearest results were unavailable, so the skill used its artist fallba
 
 The target must already exist, be an audio playlist, and not be a smart playlist. Confirm `ALLOW_PLAYLIST_WRITES=true` and that the Plex token belongs to the playlist owner.
 
-### Screen buttons do nothing
+### Stock player buttons work but custom buttons do nothing
 
-Enable Playback Controller in the Alexa Developer Console and rebuild the skill model. Audio Player alone does not deliver all hardware and screen control events.
+Playback Controller is not enough for APL buttons. Enable Alexa Presentation Language, save interfaces, and rebuild the model. Custom buttons use `Alexa.Presentation.APL.UserEvent` requests.
+
+### A search displays a confirmation screen too often
+
+The screen appears only when at least two Plex candidates are credible and their confidence scores are close. Confirm duplicate or badly named artists and albums are not present in Plex. Exact and high-confidence requests bypass confirmation.
 
 ### Generic playback chooses the wrong result
 

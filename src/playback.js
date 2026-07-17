@@ -1,3 +1,4 @@
+import { shiftWebVtt } from './lyrics.js';
 import { getTrackAt, tokenFor } from './queue.js';
 
 export async function playDirective({
@@ -28,7 +29,7 @@ export async function playDirective({
     if (captions) {
       stream.captionData = {
         type: 'WEBVTT',
-        content: captions
+        content: shiftWebVtt(captions, queue.lyricsOffsetMs ?? 0)
       };
     }
   } catch (error) {

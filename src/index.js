@@ -44,12 +44,25 @@ import {
   StopIntentHandler,
   ValidateApplicationIdInterceptor
 } from './handlers/system.js';
+import {
+  AplUserEventHandler,
+  ShowHomeIntentHandler,
+  ShowLyricsIntentHandler,
+  ShowQueueIntentHandler,
+  VisualLaunchRequestHandler,
+  VisualPlayMediaIntentHandler
+} from './visual-experience.js';
 
 export const handler = Alexa.SkillBuilders.custom()
   .addRequestInterceptors(ValidateApplicationIdInterceptor)
   .addRequestHandlers(
+    VisualLaunchRequestHandler,
     LaunchRequestHandler,
+    VisualPlayMediaIntentHandler,
     PlayMediaIntentHandler,
+    ShowHomeIntentHandler,
+    ShowQueueIntentHandler,
+    ShowLyricsIntentHandler,
     PlayGenreIntentHandler,
     PlayDecadeIntentHandler,
     PlayRadioIntentHandler,
@@ -72,6 +85,7 @@ export const handler = Alexa.SkillBuilders.custom()
     DiagnosticsIntentHandler,
     StopIntentHandler,
     HelpIntentHandler,
+    AplUserEventHandler,
     FallbackIntentHandler,
     PlaybackControllerNextHandler,
     PlaybackControllerPreviousHandler,
