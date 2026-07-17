@@ -1,160 +1,105 @@
 const MODES = new Set(['clean', 'spicy']);
 
 const CLEAN = {
-  launch: [
-    'Server Music is ready. What should I play?',
-    'Your Plex library is ready. What are we listening to?'
-  ],
-  playing: [
-    'Playing {title} from Plex.',
-    'Starting {title}.'
-  ],
-  shuffling: [
-    'Shuffling {title} from Plex.',
-    'Mixing up {title}.'
-  ],
-  notFound: [
-    'I could not find {query} in your Plex music library.',
-    'Plex could not find {query}.'
-  ],
-  emptyQueue: [
-    'There is nothing queued. Ask Server Music to play an artist, song, album, playlist, genre, or decade.'
-  ],
+  launch: ['Server Music is ready. What should I play?', 'Your Plex library is ready. What are we listening to?'],
+  playing: ['Playing {title}.', 'Starting {title}.'],
+  shuffling: ['Shuffling {title}.', 'Mixing up {title}.'],
+  notFound: ['I could not find {query} in Plex.', 'Plex could not find {query}.'],
+  missingQuery: ['I did not catch what you wanted to play.'],
+  missingGenre: ['Which genre should I play?'],
+  missingDecade: ['Which decade should I play?'],
+  emptyQueue: ['There is nothing queued. Ask me to play something.'],
   pause: ['Paused.'],
-  resume: ['Resuming playback.'],
+  resume: ['Resuming.'],
   next: ['Skipping to the next track.'],
-  previous: ['Going back to the previous track.'],
+  previous: ['Going back one track.'],
+  lastTrack: ['That was the last track.'],
+  firstTrack: ['That is the first track.'],
   startOver: ['Starting this track over.'],
+  seekForward: ['Skipping ahead {seconds} seconds.'],
+  seekBackward: ['Going back {seconds} seconds.'],
   shuffleOn: ['Shuffle is on.'],
   shuffleOff: ['Shuffle is off.'],
   loopOn: ['Loop is on.'],
   loopOff: ['Loop is off.'],
   nowPlaying: ['This is {title} by {artist}, from the album {album}.'],
-  help: [
-    'Try saying play Queen, play nineties music, start track radio, like this song, or add this to my Road Trip playlist.'
-  ],
-  fallback: [
-    'I can play an artist, album, song, playlist, genre, decade, or track radio. I can also rate songs and add them to playlists.'
-  ],
-  liked: ['I rated {title} a ten out of ten.'],
-  disliked: ['I rated {title} zero out of ten.'],
+  help: ['Try play an artist, skip this song, favorite this, never play this again, or skip ahead thirty seconds.'],
+  fallback: ['I can play music, control playback, rate tracks, and manage playlists.'],
+  liked: ['I favorited {title}.'],
+  disliked: ['I blocked {title} and skipped it.'],
   rated: ['I rated {title} {rating} out of ten.'],
+  invalidRating: ['Give me a rating from zero to ten.'],
   playlistAdded: ['I added {title} to {playlist}.'],
+  missingPlaylist: ['Which playlist should I use?'],
   playlistMissing: ['I could not find an editable Plex playlist named {playlist}.'],
+  playlistWritesDisabled: ['Playlist writes are disabled.'],
   radio: ['Starting track radio from {title}.'],
-  status: [
-    'Plex is {plexStatus}. The queue has {queueCount} tracks. Lyrics are {lyricsStatus}. Playlist writes are {playlistStatus}.'
-  ],
+  status: ['Plex is {plexStatus}. The queue has {queueCount} tracks. Lyrics are {lyricsStatus}. Playlist writes are {playlistStatus}.'],
   stopped: ['Stopping playback.'],
   error: ['Server Music hit an error. Check the Lambda logs and Plex remote access.']
 };
 
 const SPICY = {
   launch: [
-    'Server Music is awake, caffeinated, and wearing irresponsibly tight pants. What are we playing?',
-    'The jukebox is open for business, and its standards remain dangerously low. What do you want?',
-    'Plex is warmed up and making questionable eye contact. Name your poison.'
+    'Jukebox is awake. What the hell are we playing?',
+    'Plex is up. Name your poison.',
+    'All right, hit me with some music.'
   ],
   playing: [
-    'Playing {title}. Try not to make it weird. Actually, make it a little weird.',
-    '{title} is going in. The queue consented enthusiastically.',
-    'Sliding {title} into the speakers. Very tasteful. Mildly suspicious.'
+    'Found it. Playing {title}. Hell yes.',
+    '{title}. Crank that shit.',
+    'Playing {title}. Good fucking choice.',
+    '{title} is on. Let’s make bad decisions.'
   ],
   shuffling: [
-    'Shuffling {title}. Order has left the building without pants.',
-    'Mixing up {title}. Chaos, but make it sexy.',
-    'Shuffling {title}. The queue is now making poor but exciting decisions.'
+    'Shuffling {title}. Let chaos drive.',
+    '{title}, scrambled to hell.',
+    'Shuffle on. Order can fuck off.'
   ],
   notFound: [
-    'I could not find {query}. Plex checked everywhere, including under the suspiciously sticky couch.',
-    '{query} is not in the library. Either it escaped, or we never seduced it into Plex.',
-    'No luck finding {query}. The jukebox is embarrassed, but somehow still smug.'
+    'Oh shit, where did I put {query}?',
+    'I’m losing my damn mind. I can’t find {query}.',
+    '{query}? Must be in my other pants.',
+    'Fuck. {query} vanished again.',
+    'Nope. Plex ate {query}.',
+    'I checked everywhere. {query} is hiding like an asshole.'
   ],
-  emptyQueue: [
-    'The queue is empty, naked, and judging us. Ask me to play something.',
-    'Nothing is queued. The speakers are lonely and making it everyone else’s problem.'
+  missingQuery: [
+    'I missed that. Say the damn name again.',
+    'What the hell am I playing?',
+    'The microphones shit the bed. Try again.'
   ],
-  pause: [
-    'Paused. The speakers are taking a cold shower.',
-    'Paused. Everybody keep their hands where Alexa can see them.'
-  ],
-  resume: [
-    'Resuming. The speakers have made several questionable choices.',
-    'Back at it. Apparently restraint was never part of the plan.'
-  ],
-  next: [
-    'Skipping ahead. That track knows what it did.',
-    'Next track. No hard feelings, just aggressively selective taste.'
-  ],
-  previous: [
-    'Going back. Apparently we enjoy repeating our mistakes.',
-    'Previous track. A tasteful little walk of shame.'
-  ],
-  startOver: [
-    'Starting over. Again, but with more confidence and fewer clothes.',
-    'From the top. Let’s pretend the first time was just foreplay.'
-  ],
-  shuffleOn: [
-    'Shuffle is on. Order has left the building without pants.',
-    'Shuffle enabled. The queue is officially unsupervised.'
-  ],
-  shuffleOff: [
-    'Shuffle is off. We are pretending to be responsible adults again.',
-    'Shuffle disabled. Back to boring, consensual chronology.'
-  ],
-  loopOn: [
-    'Loop is on. We are now trapped together, romantically and musically.',
-    'Loop enabled. This relationship just became alarmingly committed.'
-  ],
-  loopOff: [
-    'Loop is off. Commitment issues restored.',
-    'Loop disabled. The song is free to leave after one last awkward glance.'
-  ],
-  nowPlaying: [
-    'This is {title} by {artist}, from {album}. You have excellent taste, occasionally.',
-    '{title}, by {artist}, from the album {album}. Try to act casual.'
-  ],
-  help: [
-    'Try saying play Queen, play nineties music, start track radio, like this song, or add this to my Road Trip playlist. I contain multitudes and several bad ideas.'
-  ],
-  fallback: [
-    'I can play artists, albums, songs, playlists, genres, decades, and track radio. I can also rate songs and put them into playlists, because apparently I am the responsible one here.'
-  ],
-  liked: [
-    'Rated {title} a ten. Absolutely shameless behavior.',
-    '{title} gets a perfect ten. Buy it dinner first.'
-  ],
-  disliked: [
-    'Rated {title} a zero. Brutal, but the jukebox respects boundaries.',
-    '{title} gets zero. I have seen gentler breakups.'
-  ],
-  rated: [
-    'Rated {title} {rating} out of ten. The judgment has been entered into the horny little database.',
-    '{title} gets {rating} out of ten. Harsh, fair, and weirdly attractive.'
-  ],
-  playlistAdded: [
-    'Added {title} to {playlist}. They are getting cozy.',
-    '{title} is now inside {playlist}. Everybody behaved professionally, mostly.'
-  ],
-  playlistMissing: [
-    'I could not find an editable playlist named {playlist}. It may be smart, missing, or playing hard to get.',
-    'No writable playlist called {playlist}. Plex is being coy again.'
-  ],
-  radio: [
-    'Starting track radio from {title}. Let’s see what else has the same dangerous energy.',
-    'Building a radio around {title}. Similar vibes, fewer emotional consequences.'
-  ],
-  status: [
-    'Plex is {plexStatus}, the queue has {queueCount} tracks, lyrics are {lyricsStatus}, playlist writes are {playlistStatus}, and nothing is currently on fire. Very disappointing.'
-  ],
-  stopped: [
-    'Stopping playback. The speakers will think about what they have done.',
-    'Stopped. Everyone put your pants back on.'
-  ],
-  error: [
-    'Server Music tripped over its own pants. Check the Lambda logs and Plex remote access.',
-    'Something broke. The music stopped, the mood died, and CloudWatch has the gossip.'
-  ]
+  missingGenre: ['Which genre, you indecisive bastard?', 'Name a genre. Any damn genre.'],
+  missingDecade: ['Which decade are we raiding?', 'Pick a decade, time traveler.'],
+  emptyQueue: ['The queue is empty as hell.', 'Nothing queued. Feed the damn jukebox.'],
+  pause: ['Paused. Everybody calm the fuck down.', 'Paused. Tiny music timeout.'],
+  resume: ['Back at it. Fuck restraint.', 'Resuming. Let’s get loud again.'],
+  next: ['Skipping. That song knows what it did.', 'Next. Get this shit out of here.', 'Gone. Next victim.'],
+  previous: ['Going back. Apparently mistakes deserve seconds.', 'Back one. Nostalgic little bastard.'],
+  lastTrack: ['That was the last track. We killed the queue.', 'Queue is dead. Nice work.'],
+  firstTrack: ['That is the first track. Time says fuck off.', 'Already at the beginning, genius.'],
+  startOver: ['From the top. Do it properly this time.', 'Restarting. Again, with feeling.'],
+  seekForward: ['Jumping ahead {seconds} seconds. Screw the boring part.', 'Skipping {seconds} seconds. Bye, filler.'],
+  seekBackward: ['Going back {seconds} seconds. You missed the good shit.', 'Rewinding {seconds} seconds. Pay attention.'],
+  shuffleOn: ['Shuffle on. Order can eat shit.', 'Shuffle enabled. Chaos wins.'],
+  shuffleOff: ['Shuffle off. Boring order restored.', 'Shuffle disabled. Back in line, assholes.'],
+  loopOn: ['Loop on. We live here now.', 'Loop enabled. Escape denied.'],
+  loopOff: ['Loop off. Freedom, finally.', 'Loop disabled. Commitment avoided.'],
+  nowPlaying: ['{title} by {artist}, from {album}. Damn good pick.', '{title}, {artist}. That’s the shit.'],
+  help: ['Say play an artist, skip this shit, favorite it, ban it forever, or jump ahead thirty seconds.'],
+  fallback: ['I play music and boss Plex around. Try saying something useful.'],
+  liked: ['Favorited {title}. That shit stays.', '{title} gets the big thumbs up.'],
+  disliked: ['Blocked {title}. Never playing that shit again.', '{title} is dead to us. Skipping it.', 'Thumbs down. Banished forever.'],
+  rated: ['{title} gets {rating} out of ten. Judgment delivered.', 'Rated {title} a {rating}. Brutal.'],
+  invalidRating: ['Zero to ten, mathlete.', 'Pick zero through ten. Don’t make this weird.'],
+  playlistAdded: ['Stuffed {title} into {playlist}.', '{title} is in {playlist}. Done.'],
+  missingPlaylist: ['Which damn playlist?', 'Name the playlist, boss.'],
+  playlistMissing: ['Can’t find writable playlist {playlist}. Plex is being an asshole.', '{playlist} is missing or read-only. Shit.'],
+  playlistWritesDisabled: ['Playlist writes are off. Bureaucratic bullshit.', 'Can’t write playlists. The switch is off.'],
+  radio: ['Starting radio from {title}. Let’s see what other shit fits.', '{title} radio. Similar trouble incoming.'],
+  status: ['Plex is {plexStatus}. {queueCount} tracks queued. Lyrics {lyricsStatus}. Playlist writes {playlistStatus}. Nothing is on fire.'],
+  stopped: ['Stopped. Party’s fucking over.', 'Music off. Silence wins.'],
+  error: ['Something broke. CloudWatch has the dirty details.', 'Well, shit. Check Lambda and Plex.', 'The jukebox ate shit. Logs know why.']
 };
 
 function interpolate(template, values) {

@@ -11,7 +11,7 @@ Alexa voice and screen controls
 AWS Lambda  -----> Plex catalog, ratings, playlists, lyrics, and timeline APIs
              |
              v
-DynamoDB queue state
+DynamoDB queue state and permanent track bans
 
 Alexa audio and artwork requests
              |
@@ -24,41 +24,50 @@ CloudFront injects the Plex token into origin requests. Audio and artwork URLs s
 ## Highlights
 
 - Play a song, artist, album, audio playlist, genre, mood, style, or decade
-- Better matching for requests such as `play Everlong by Foo Fighters`
-- Shuffle, loop, pause, resume, next, previous, and start over
+- Phonetic and typo-tolerant matching for Alexa mistakes such as `banson boon` matching Benson Boone
+- Article and spelling normalization, including `Neighborhood` matching The Neighbourhood
+- Cached broad-catalog fallback when Plex exact search returns nothing useful
+- Shuffle, loop, pause, resume, next, previous, start over, skip ahead, and rewind
 - Physical and on-screen Playback Controller buttons
 - Continuous queue playback through `AudioPlayer.PlaybackNearlyFinished`
 - Large square artwork plus full-screen background artwork on supported devices
 - Timed lyrics on compatible screen devices using WebVTT captions
 - Local Plex `.lrc` lyrics first, with optional LRCLIB fallback
 - Track radio using Plex sonic-nearest tracks with artist fallback
-- Like, dislike, and zero-to-ten Plex ratings
+- Favorite and thumbs-up support through Plex ratings
+- Permanent per-user `never play this again` bans stored in DynamoDB
 - Add the current song to an existing editable Plex playlist
 - Plex connectivity and queue diagnostics
 - Plex Now Playing timeline updates
 - Direct MP3/AAC playback and Plex MP3 transcoding for unsupported formats
-- Configurable clean or intentionally silly, mildly risqué responses
+- Configurable clean or short, randomized, intentionally vulgar responses
 
 ## Voice examples
 
 ```text
-Alexa, ask Server Music to play Queen
+Alexa, ask Server Music to play artist Benson Boone
+Alexa, ask Server Music to play The Neighbourhood
 Alexa, ask Server Music to play Everlong by Foo Fighters
-Alexa, ask Server Music to play the album The Wall
 Alexa, ask Server Music to shuffle my Road Trip playlist
-Alexa, ask Server Music to play alternative music
-Alexa, ask Server Music to play nineties music
 Alexa, ask Server Music to play more like this
-Alexa, ask Server Music to like this song
-Alexa, ask Server Music to rate this track seven out of ten
+Alexa, ask Server Music to skip ahead thirty seconds
+Alexa, ask Server Music to rewind fifteen seconds
+Alexa, ask Server Music to favorite this song
+Alexa, ask Server Music to give this a thumbs down
+Alexa, ask Server Music to never play this again
 Alexa, ask Server Music to add this song to my Road Trip playlist
-Alexa, ask Server Music to run diagnostics
 Alexa, next
 Alexa, pause
 Alexa, resume
 ```
 
 A private custom skill still needs the invocation phrase, usually `ask Server Music`. It does not replace a first-party provider command such as `Alexa, play Queen`.
+
+## Matching behavior
+
+Plex search is attempted first. Weak or empty results fall back to a cached catalog scan with edit-distance, token, spelling, and phonetic scoring. Artist and album catalogs are cached in a warm Lambda for ten minutes. The track fallback is intentionally bounded so a bad transcription does not turn every request into an unbounded library scan.
+
+Explicit track bans are stored separately from Plex ratings because Plex metadata does not consistently distinguish an unrated track from a zero rating. A thumbs-up or favorite on the current track removes its local ban.
 
 ## Lyrics
 
@@ -73,7 +82,7 @@ Set `LYRICS_MODE=plex` to keep lyric lookup entirely inside Plex, or `LYRICS_MOD
 
 ## Personality
 
-`PERSONALITY_MODE=spicy` is the default and uses randomized silly, mildly risqué responses. Set it to `clean` for straightforward responses.
+`PERSONALITY_MODE=spicy` is the default. It uses short randomized responses and intentionally includes profanity. Set it to `clean` for straightforward responses.
 
 ## Plex feature notes
 
@@ -93,7 +102,7 @@ npm run discover:plex
 npm run deploy
 ```
 
-After deployment, import `interaction-model/en-US.json` into the Alexa Developer Console, build the model, and enable both the Audio Player and Playback Controller interfaces.
+After every interaction-model change, import `interaction-model/en-US.json` into the Alexa Developer Console, save it, and rebuild the model. Enable both the Audio Player and Playback Controller interfaces.
 
 ## Configuration
 
