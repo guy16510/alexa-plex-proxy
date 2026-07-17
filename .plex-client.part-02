@@ -1,0 +1,260 @@
+      title: query,
+      'X-Plex-Container-Start': 0,
+      'X-Plex-Container-Size': limit
+    });
+    let items = containerItems(container);
+
+    if (items.length === 0) {
+      container = await this.request(`/library/sections/${sectionKey}/search`, {
+        type,
+        query,
+        'X-Plex-Container-Start': 0,
+        'X-Plex-Container-Size': limit
+      });
+      items = containerItems(container);
+    }
+
+    return items;
+  }
+
+  async searchPlaylists() {
+    const container = await this.request('/playlists', {
+      playlistType: 'audio',
+      'X-Plex-Container-Start': 0,
+      'X-Plex-Container-Size': 500
+    });
+    return containerItems(container);
+  }
+
+  async tracksFor(kind, item) {
+    if (kind === 'track') return [item];
+
+    const options = {
+      'X-Plex-Container-Start': 0,
+      'X-Plex-Container-Size': this.maxTracks
+    };
+
+    if (kind === 'artist') {
+      return containerItems(
+        await this.request(`/library/metadata/${item.ratingKey}/allLeaves`, options)
+      );
+    }
+    if (kind === 'album') {
+      return containerItems(
+        await this.request(`/library/metadata/${item.ratingKey}/children`, options)
+      );
+    }
+    if (kind === 'playlist') {
+      return containerItems(
+        await this.request(`/playlists/${item.ratingKey}/items`, options)
+      );
+    }
+    throw new Error(`Unsupported Plex media kind: ${kind}`);
+  }
+
+  normalizeTrack(item) {
+    const selected = firstPart(item);
+    if (!selected) return null;
+
+    const { media, part } = selected;
+    const container = String(part.container || media.container || '').toLowerCase();
+    const audioCodec = String(media.audioCodec || '').toLowerCase();
+    const bitrate = Number.parseInt(media.bitrate ?? part.bitrate ?? '0', 10) || 0;
+    const ratingKey = String(item.ratingKey ?? item.key ?? '').replace(/\D/g, '');
+    if (!ratingKey) return null;
+    const lyrics = lyricStream(item);
+
+    const directPlayable = DIRECT_CONTAINERS.has(container)
+      && DIRECT_CODECS.has(audioCodec)
+      && (bitrate === 0 || bitrate <= 384);
+
+    return {
+      ratingKey,
+      title: limitText(item.title, 'Unknown track'),
+      artist: limitText(item.originalTitle || item.grandparentTitle || item.artist, 'Unknown artist'),
+      album: limitText(item.parentTitle || item.album, 'Unknown album'),
+      year: Number.parseInt(item.parentYear ?? item.year ?? '0', 10) || 0,
+      durationMs: Number.parseInt(item.duration ?? part.duration ?? media.duration ?? '0', 10) || 0,
+      partPath: String(part.key),
+      partId: part.id ? String(part.id) : null,
+      parentRatingKey: item.parentRatingKey ? String(item.parentRatingKey) : null,
+      grandparentRatingKey: item.grandparentRatingKey ? String(item.grandparentRatingKey) : null,
+      thumbPath: item.thumb || item.parentThumb || item.grandparentThumb || null,
+      artPath: item.art || item.parentArt || item.grandparentArt || null,
+      lyricsKey: lyrics?.key ?? null,
+      lyricsCodec: lyrics?.codec ?? null,
+      lyricsTimed: lyrics?.timed ?? false,
+      userRating: Number.parseFloat(item.userRating ?? '0') || 0,
+      container: container || null,
+      audioCodec: audioCodec || null,
+      bitrate,
+      directPlayable
+    };
+  }
+
+  async resolveTrack(query) {
+    const split = parseSongArtistQuery(query);
+    const searchQueries = [...new Set([query, split?.title].filter(Boolean))];
+    const candidateLists = await Promise.all(searchQueries.map((value) => this.searchLibrary('track', value)));
+    const candidates = dedupeTracks(
+      candidateLists.flat().map((item) => this.normalizeTrack(item)).filter(Boolean)
+    );
+
+    let best = null;
+    for (const candidate of candidates) {
+      const directScore = Math.max(
+        matchScore(query, candidate.title),
+        matchScore(query, `${candidate.title} ${candidate.artist}`)
+      );
+      const compositeScore = split
+        ? (matchScore(split.title, candidate.title) * 0.78)
+          + (matchScore(split.artist, candidate.artist) * 0.22)
+        : 0;
+      const score = Math.max(directScore, compositeScore);
+      if (!best || score > best.score) best = { candidate, score };
+    }
+
+    if (!best || best.score < 0.42) return null;
+    return {
+      kind: 'track',
+      title: limitText(`${best.candidate.title} by ${best.candidate.artist}`, query),
+      score: best.score,
+      tracks: [best.candidate]
+    };
+  }
+
+  async resolveSpecific(kind, query) {
+    if (kind === 'track') return this.resolveTrack(query);
+    const candidates = kind === 'playlist'
+      ? await this.searchPlaylists()
+      : await this.searchLibrary(kind, query);
+    const matched = bestMatch(query, candidates, (item) => item.title ?? '');
+    if (!matched || matched.score < 0.42) return null;
+
+    const tracks = (await this.tracksFor(kind, matched.candidate))
+      .map((item) => this.normalizeTrack(item))
+      .filter(Boolean)
+      .slice(0, this.maxTracks);
+    if (tracks.length === 0) return null;
+
+    return {
+      kind,
+      title: limitText(matched.candidate.title, query),
+      score: matched.score,
+      tracks
+    };
+  }
+
+  async resolve(kind, query) {
+    const cleanQuery = String(query ?? '').trim();
+    if (!cleanQuery) throw new Error('A search query is required');
+
+    if (kind !== 'any') return this.resolveSpecific(kind, cleanQuery);
+
+    const priorities = { track: 0.04, artist: 0.03, album: 0.02, playlist: 0 };
+    const results = await Promise.all(
+      ['track', 'artist', 'album', 'playlist'].map(async (candidateKind) => {
+        try {
+          return await this.resolveSpecific(candidateKind, cleanQuery);
+        } catch (error) {
+          console.warn('Plex search branch failed', {
+            kind: candidateKind,
+            message: redactPlexSecrets(error.message)
+          });
+          return null;
+        }
+      })
+    );
+
+    return results
+      .filter(Boolean)
+      .sort((left, right) =>
+        (right.score + priorities[right.kind]) - (left.score + priorities[left.kind]))[0] ?? null;
+  }
+
+  async resolveGenre(query) {
+    const cleanQuery = String(query ?? '').trim();
+    if (!cleanQuery) return null;
+    const sectionKey = await this.getMusicSectionKey();
+
+    for (const filterName of ['genre', 'style', 'mood']) {
+      try {
+        const container = await this.request(`/library/sections/${sectionKey}/all`, {
+          type: MEDIA_TYPES.track,
+          [filterName]: cleanQuery,
+          'X-Plex-Container-Start': 0,
+          'X-Plex-Container-Size': this.maxTracks
+        });
+        const tracks = containerItems(container)
+          .map((item) => this.normalizeTrack(item))
+          .filter(Boolean)
+          .slice(0, this.maxTracks);
+        if (tracks.length > 0) {
+          return {
+            kind: filterName,
+            title: cleanQuery,
+            score: 1,
+            tracks
+          };
+        }
+      } catch (error) {
+        console.warn('Plex music filter failed', {
+          filterName,
+          message: redactPlexSecrets(error.message)
+        });
+      }
+    }
+    return null;
+  }
+
+  async resolveDecade(value) {
+    const startYear = normalizeDecade(value);
+    if (!startYear) return null;
+    const endYear = startYear + 9;
+    const sectionKey = await this.getMusicSectionKey();
+
+    let container = await this.request(`/library/sections/${sectionKey}/all`, {
+      type: MEDIA_TYPES.track,
+      'year>=': startYear,
+      'year<=': endYear,
+      'X-Plex-Container-Start': 0,
+      'X-Plex-Container-Size': this.maxTracks
+    });
+    let tracks = containerItems(container)
+      .map((item) => this.normalizeTrack(item))
+      .filter((track) => track && track.year >= startYear && track.year <= endYear);
+
+    if (tracks.length === 0) {
+      container = await this.request(`/library/sections/${sectionKey}/all`, {
+        type: MEDIA_TYPES.track,
+        'X-Plex-Container-Start': 0,
+        'X-Plex-Container-Size': Math.min(500, this.maxTracks * 4)
+      });
+      tracks = containerItems(container)
+        .map((item) => this.normalizeTrack(item))
+        .filter((track) => track && track.year >= startYear && track.year <= endYear);
+    }
+
+    tracks = tracks.slice(0, this.maxTracks);
+    if (tracks.length === 0) return null;
+    return {
+      kind: 'decade',
+      title: `the ${startYear}s`,
+      score: 1,
+      tracks
+    };
+  }
+
+  async radioForTrack(track) {
+    if (!track?.ratingKey) return null;
+    let tracks = [];
+    try {
+      const container = await this.request(`/library/metadata/${track.ratingKey}/nearest`, {
+        limit: this.radioTrackLimit,
+        excludeParentID: track.parentRatingKey,
+        excludeGrandparentID: track.grandparentRatingKey
+      });
+      tracks = containerItems(container)
+        .map((item) => this.normalizeTrack(item))
+        .filter(Boolean);
+    } catch (error) {
