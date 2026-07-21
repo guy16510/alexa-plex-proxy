@@ -229,7 +229,7 @@ export function homeDocument(data = {}) {
                 justifyContent: 'spaceBetween',
                 alignItems: 'center',
                 items: [
-                  label('SERVER MUSIC', { fontSize: 20, fontWeight: '700' }),
+                  label('BURNS JUKEBOX', { fontSize: 20, fontWeight: '700' }),
                   label('Plex, but less boring', { fontSize: 16, color: '#BFFFFFFF' })
                 ]
               },
@@ -253,7 +253,7 @@ export function homeDocument(data = {}) {
             paddingBottom: 36,
             direction: 'column',
             items: [
-              label('SERVER MUSIC', { fontSize: 26, fontWeight: '700' }),
+              label('BURNS JUKEBOX', { fontSize: 26, fontWeight: '700' }),
               label('Your Plex library, dressed properly.', {
                 fontSize: 40,
                 fontWeight: '700',

@@ -1,7 +1,7 @@
 const MODES = new Set(['clean', 'spicy']);
 
 const CLEAN = {
-  launch: ['Server Music is ready. What should I play?', 'Your Plex library is ready. What are we listening to?'],
+  launch: ['Burns Jukebox is ready. What should I play?', 'Your Plex library is ready. What are we listening to?'],
   playing: ['Playing {title}.', 'Starting {title}.'],
   shuffling: ['Shuffling {title}.', 'Mixing up {title}.'],
   notFound: ['I could not find {query} in Plex.', 'Plex could not find {query}.'],
@@ -36,7 +36,7 @@ const CLEAN = {
   radio: ['Starting track radio from {title}.'],
   status: ['Plex is {plexStatus}. The queue has {queueCount} tracks. Lyrics are {lyricsStatus}. Playlist writes are {playlistStatus}.'],
   stopped: ['Stopping playback.'],
-  error: ['Server Music hit an error. Check the Lambda logs and Plex remote access.']
+  error: ['Burns Jukebox hit an error. Check the Lambda logs and Plex remote access.']
 };
 
 const SPICY = {

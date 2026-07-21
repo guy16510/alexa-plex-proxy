@@ -5,6 +5,9 @@ const model = document?.interactionModel?.languageModel;
 if (!model?.invocationName || !Array.isArray(model.intents)) {
   throw new Error('interaction-model/en-US.json must contain interactionModel.languageModel with intents');
 }
+if (model.invocationName !== 'burns jukebox') {
+  throw new Error('interaction-model/en-US.json invocationName must be exactly "burns jukebox"');
+}
 
 const requiredIntents = [
   'PlaySongIntent',

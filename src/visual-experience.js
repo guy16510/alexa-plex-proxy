@@ -276,7 +276,7 @@ export const ShowHomeIntentHandler = {
   },
   async handle(handlerInput) {
     if (!supportsApl(handlerInput)) {
-      return handlerInput.responseBuilder.speak('Open Server Music on an Echo Show for the visual library.').getResponse();
+      return handlerInput.responseBuilder.speak('Open Burns Jukebox on an Echo Show for the visual library.').getResponse();
     }
     return renderHome(handlerInput);
   }

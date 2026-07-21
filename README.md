@@ -52,30 +52,30 @@ CloudFront injects the Plex token into origin requests. Audio and artwork URLs s
 ## Voice examples
 
 ```text
-Alexa, ask Server Music to play artist Benson Boone
-Alexa, ask Server Music to play The Neighbourhood
-Alexa, ask Server Music to play Everlong by Foo Fighters
-Alexa, ask Server Music to shuffle my Road Trip playlist
-Alexa, ask Server Music to show my music
-Alexa, ask Server Music to show the queue
-Alexa, ask Server Music to show lyrics
-Alexa, ask Server Music to play more like this
-Alexa, ask Server Music to skip ahead thirty seconds
-Alexa, ask Server Music to rewind fifteen seconds
-Alexa, ask Server Music to favorite this song
-Alexa, ask Server Music to give this a thumbs down
-Alexa, ask Server Music to never play this again
-Alexa, ask Server Music to add this song to my Road Trip playlist
+Alexa, ask Burns Jukebox to play artist Benson Boone
+Alexa, ask Burns Jukebox to play The Neighbourhood
+Alexa, ask Burns Jukebox to play Everlong by Foo Fighters
+Alexa, ask Burns Jukebox to shuffle my Road Trip playlist
+Alexa, ask Burns Jukebox to show my music
+Alexa, ask Burns Jukebox to show the queue
+Alexa, ask Burns Jukebox to show lyrics
+Alexa, ask Burns Jukebox to play more like this
+Alexa, ask Burns Jukebox to skip ahead thirty seconds
+Alexa, ask Burns Jukebox to rewind fifteen seconds
+Alexa, ask Burns Jukebox to favorite this song
+Alexa, ask Burns Jukebox to give this a thumbs down
+Alexa, ask Burns Jukebox to never play this again
+Alexa, ask Burns Jukebox to add this song to my Road Trip playlist
 Alexa, next
 Alexa, pause
 Alexa, resume
 ```
 
-A private custom skill still needs the invocation phrase, usually `ask Server Music`. It does not replace a first-party provider command such as `Alexa, play Queen`.
+A private custom skill still needs the invocation phrase, usually `ask Burns Jukebox`. It does not replace a first-party provider command such as `Alexa, play Queen`.
 
 ## Visual experience
 
-On APL-capable Echo Show devices, opening Server Music displays a Plex-backed browse screen with recently added albums, highly rated tracks, and audio playlists. Every card is generated from the items actually present in Plex.
+On APL-capable Echo Show devices, opening Burns Jukebox displays a Plex-backed browse screen with recently added albums, highly rated tracks, and audio playlists. Every card is generated from the items actually present in Plex.
 
 The queue and lyric screens use the real Plex cover art as a blurred, darkened backdrop. The Echo Show 5 receives a dedicated compact layout with large touch targets. Touch events are sent back to Lambda through `Alexa.Presentation.APL.UserEvent` and use the same queue, ratings, bans, radio, and playback code as voice commands.
 

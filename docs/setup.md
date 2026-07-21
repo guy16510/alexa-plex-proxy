@@ -25,7 +25,7 @@ For the strongest track-radio results, enable Plex sonic analysis for the music 
 In the Alexa Developer Console:
 
 1. Create a Custom skill using your own endpoint.
-2. Use `server music` as the invocation name, or change it consistently in the interaction model and examples.
+2. Use `burns jukebox` as the invocation name, or change it consistently in the interaction model and examples.
 3. Open the JSON editor and import `interaction-model/en-US.json`.
 4. Save and build the interaction model.
 5. Enable the **Audio Player** interface.
@@ -110,31 +110,31 @@ Save the endpoint configuration and rebuild the interaction model after any mode
 Start with basic playback:
 
 ```text
-Alexa, open Server Music
-Alexa, ask Server Music to play songs by Queen
-Alexa, ask Server Music to play the album The Wall
-Alexa, ask Server Music what is playing
+Alexa, open Burns Jukebox
+Alexa, ask Burns Jukebox to play songs by Queen
+Alexa, ask Burns Jukebox to play the album The Wall
+Alexa, ask Burns Jukebox what is playing
 ```
 
 Then test matching and controls:
 
 ```text
-Alexa, ask Server Music to play artist Banson Boon
-Alexa, ask Server Music to play Neighborhood
-Alexa, ask Server Music to play more like this
-Alexa, ask Server Music to skip ahead thirty seconds
-Alexa, ask Server Music to favorite this song
-Alexa, ask Server Music to never play this again
-Alexa, ask Server Music to add this song to my Road Trip playlist
+Alexa, ask Burns Jukebox to play artist Banson Boon
+Alexa, ask Burns Jukebox to play Neighborhood
+Alexa, ask Burns Jukebox to play more like this
+Alexa, ask Burns Jukebox to skip ahead thirty seconds
+Alexa, ask Burns Jukebox to favorite this song
+Alexa, ask Burns Jukebox to never play this again
+Alexa, ask Burns Jukebox to add this song to my Road Trip playlist
 ```
 
 On an Echo Show 5, test the visual flows:
 
 ```text
-Alexa, open Server Music
-Alexa, ask Server Music to show my music
-Alexa, ask Server Music to show the queue
-Alexa, ask Server Music to show lyrics
+Alexa, open Burns Jukebox
+Alexa, ask Burns Jukebox to show my music
+Alexa, ask Burns Jukebox to show the queue
+Alexa, ask Burns Jukebox to show lyrics
 ```
 
 Confirm:
@@ -223,15 +223,15 @@ The screen appears only when at least two Plex candidates are credible and their
 Use a more specific phrase such as:
 
 ```text
-Alexa, ask Server Music to play the song Everlong by Foo Fighters
-Alexa, ask Server Music to play the album The Wall
-Alexa, ask Server Music to play my Road Trip playlist
+Alexa, ask Burns Jukebox to play the song Everlong by Foo Fighters
+Alexa, ask Burns Jukebox to play the album The Wall
+Alexa, ask Burns Jukebox to play my Road Trip playlist
 ```
 
 ### Check health without opening AWS
 
 ```text
-Alexa, ask Server Music to run diagnostics
+Alexa, ask Burns Jukebox to run diagnostics
 ```
 
 This reports live Plex connectivity, queue size, lyric mode, and playlist-write status.
