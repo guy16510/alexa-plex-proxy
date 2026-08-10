@@ -67,9 +67,63 @@ test('home content degrades gracefully when one Plex section fails', async () =>
     throw new Error('favorites unavailable');
   };
   plex.visualPlaylists = async () => [{ title: 'Road Trip', artUrl: 'playlist-bg' }];
-  const content = await plex.homeContent();
+  const content = await plex.homeContent({ sectionTimeoutMs: 50 });
   assert.equal(content.recentAlbums.length, 1);
   assert.deepEqual(content.favorites, []);
   assert.equal(content.playlists.length, 1);
   assert.equal(content.backgroundImage, 'bg');
+});
+
+test('home content returns a valid empty model when every Plex section fails', async () => {
+  const plex = client();
+  plex.recentAlbums = async () => { throw new Error('recent failed'); };
+  plex.favoriteTracks = async () => { throw new Error('favorites failed'); };
+  plex.visualPlaylists = async () => { throw new Error('playlists failed'); };
+  const content = await plex.homeContent({ sectionTimeoutMs: 50 });
+  assert.deepEqual(content, {
+    recentAlbums: [],
+    favorites: [],
+    playlists: [],
+    backgroundImage: ''
+  });
+});
+
+test('home content never waits indefinitely for Plex during Alexa launch', async () => {
+  const plex = client();
+  const never = () => new Promise(() => {});
+  plex.recentAlbums = never;
+  plex.favoriteTracks = never;
+  plex.visualPlaylists = never;
+
+  const startedAt = Date.now();
+  const content = await plex.homeContent({ sectionTimeoutMs: 25 });
+  const elapsedMs = Date.now() - startedAt;
+
+  assert.ok(elapsedMs < 250, `homeContent took ${elapsedMs}ms`);
+  assert.deepEqual(content, {
+    recentAlbums: [],
+    favorites: [],
+    playlists: [],
+    backgroundImage: ''
+  });
+});
+
+test('home content tolerates repeated intermittent Plex failures', async () => {
+  const plex = client();
+  let call = 0;
+  plex.recentAlbums = async () => {
+    call += 1;
+    if (call % 2 === 0) throw new Error('temporary failure');
+    return [{ title: `Album ${call}`, artUrl: `bg-${call}` }];
+  };
+  plex.favoriteTracks = async () => [];
+  plex.visualPlaylists = async () => [];
+
+  for (let index = 0; index < 20; index += 1) {
+    const content = await plex.homeContent({ sectionTimeoutMs: 50 });
+    assert.ok(Array.isArray(content.recentAlbums));
+    assert.ok(Array.isArray(content.favorites));
+    assert.ok(Array.isArray(content.playlists));
+    assert.equal(typeof content.backgroundImage, 'string');
+  }
 });
