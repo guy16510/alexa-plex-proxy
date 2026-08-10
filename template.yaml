@@ -226,6 +226,45 @@ Resources:
           Properties:
             SkillId: !Ref AlexaSkillId
 
+  HomeRefreshFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-home-refresh'
+      CodeUri: .
+      Handler: src/home-refresh.handler
+      Description: Refresh cached Burns Jukebox APL home content outside Alexa launch requests
+      Environment:
+        Variables:
+          ALEXA_SKILL_ID: !Ref AlexaSkillId
+          PLEX_URL: !Sub 'https://${PlexOriginDomain}:${PlexOriginPort}'
+          PLEX_TOKEN: !Ref PlexToken
+          PLEX_MUSIC_LIBRARY: !Ref PlexMusicLibrary
+          STREAM_BASE_URL: !Sub 'https://${PlexDistribution.DomainName}'
+          QUEUE_TABLE: !Ref QueueTable
+          MAX_QUEUE_TRACKS: !Ref MaxQueueTracks
+          MAX_AUDIO_BITRATE: !Ref MaxAudioBitrate
+          TRANSCODE_POLICY: !Ref TranscodePolicy
+          QUEUE_TTL_HOURS: !Ref QueueTtlHours
+          PLEX_REQUEST_TIMEOUT_MS: '10000'
+          LYRICS_MODE: !Ref LyricsMode
+          LYRICS_REQUEST_TIMEOUT_MS: !Ref LyricsRequestTimeoutMs
+          PERSONALITY_MODE: !Ref PersonalityMode
+          RADIO_TRACK_LIMIT: !Ref RadioTrackLimit
+          ALLOW_PLAYLIST_WRITES: !Ref AllowPlaylistWrites
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+            Resource: !GetAtt QueueTable.Arn
+      Events:
+        HomeRefreshSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+            Enabled: true
+
   SkillFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     DependsOn: SkillFunction
@@ -233,10 +272,20 @@ Resources:
       LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-skill'
       RetentionInDays: 14
 
+  HomeRefreshFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: HomeRefreshFunction
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-home-refresh'
+      RetentionInDays: 14
+
 Outputs:
   SkillFunctionArn:
     Description: Paste this ARN into the Alexa Developer Console endpoint
     Value: !GetAtt SkillFunction.Arn
+  HomeRefreshFunctionArn:
+    Description: Scheduled Lambda that refreshes cached APL home content
+    Value: !GetAtt HomeRefreshFunction.Arn
   StreamBaseUrl:
     Description: Alexa-compatible HTTPS endpoint managed by CloudFront
     Value: !Sub 'https://${PlexDistribution.DomainName}'
