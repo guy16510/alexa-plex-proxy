@@ -7,6 +7,8 @@ import {
   queueDocument,
   supportsApl
 } from './apl.js';
+import { loadLaunchHome } from './launch-home.js';
+import { recordVisualLaunchTelemetry } from './launch-telemetry.js';
 import { parseWebVtt, lyricWindow, shiftWebVtt } from './lyrics.js';
 import { playDirective, stopDirective } from './playback.js';
 import {
@@ -18,7 +20,7 @@ import {
   setShuffle
 } from './queue.js';
 import { getUserId } from './request-utils.js';
-import { config, plex, queueStore, respond } from './runtime.js';
+import { config, homeSnapshotStore, plex, queueStore, respond } from './runtime.js';
 
 const PLAY_INTENTS = new Set([
   'PlaySongIntent',
@@ -152,12 +154,12 @@ export async function startResolvedResult(handlerInput, result, {
     .getResponse();
 }
 
-export async function renderHome(handlerInput, { speak = null } = {}) {
-  const content = await plex.homeContent();
+export async function renderHome(handlerInput, { speak = null, content = null } = {}) {
+  const home = content ?? await plex.homeContent();
   const builder = handlerInput.responseBuilder;
   if (speak) builder.speak(speak);
   return builder
-    .addDirective(aplDirective(homeDocument(content), {}, `server-music:home:${Date.now()}`))
+    .addDirective(aplDirective(homeDocument(home), {}, `server-music:home:${Date.now()}`))
     .getResponse();
 }
 
@@ -245,7 +247,38 @@ export const VisualLaunchRequestHandler = {
       && supportsApl(handlerInput);
   },
   async handle(handlerInput) {
-    return renderHome(handlerInput, { speak: respond('launch') });
+    const startedAt = Date.now();
+    const launchHome = await loadLaunchHome(homeSnapshotStore);
+    try {
+      const response = await renderHome(handlerInput, {
+        speak: respond('launch'),
+        content: launchHome.content
+      });
+      recordVisualLaunchTelemetry({
+        requestEnvelope: handlerInput.requestEnvelope,
+        latencyMs: Date.now() - startedAt,
+        success: true,
+        fallback: launchHome.source !== 'snapshot',
+        reason: launchHome.reason,
+        snapshotUpdatedAt: launchHome.snapshotUpdatedAt
+      });
+      return response;
+    } catch (error) {
+      console.error('Visual launch rendering failed, using speech-only fallback', {
+        message: error.message
+      });
+      recordVisualLaunchTelemetry({
+        requestEnvelope: handlerInput.requestEnvelope,
+        latencyMs: Date.now() - startedAt,
+        success: false,
+        fallback: true,
+        reason: 'apl-render-error'
+      });
+      return handlerInput.responseBuilder
+        .speak(respond('launch'))
+        .reprompt('What should I play from Plex?')
+        .getResponse();
+    }
   }
 };
 
