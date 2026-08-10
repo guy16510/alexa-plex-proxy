@@ -1,6 +1,8 @@
 import { matchScore } from './matching.js';
 import { EnhancedPlexClient } from './enhanced-plex-client.js';
 
+const HOME_SECTION_TIMEOUT_MS = 750;
+
 function asArray(value) {
   if (value == null) return [];
   return Array.isArray(value) ? value : [value];
@@ -27,6 +29,34 @@ function dedupe(items, getKey = (item) => item?.ratingKey ?? item?.title) {
 
 function normalizedKind(kind) {
   return ['artist', 'album', 'track', 'playlist'].includes(kind) ? kind : 'any';
+}
+
+async function boundedHomeSection(load, label, timeoutMs = HOME_SECTION_TIMEOUT_MS) {
+  const startedAt = Date.now();
+  let timer;
+  try {
+    const lookup = Promise.resolve()
+      .then(load)
+      .then((value) => ({ value: Array.isArray(value) ? value : [], outcome: 'ok' }))
+      .catch((error) => ({ value: [], outcome: 'error', error }));
+    const timeout = new Promise((resolve) => {
+      timer = setTimeout(() => resolve({ value: [], outcome: 'timeout' }), timeoutMs);
+    });
+    const result = await Promise.race([lookup, timeout]);
+    const elapsedMs = Date.now() - startedAt;
+    if (result.outcome === 'timeout') {
+      console.warn('Plex home section exceeded launch latency budget', { section: label, timeoutMs, elapsedMs });
+    } else if (result.outcome === 'error') {
+      console.warn('Plex home section failed during launch', {
+        section: label,
+        elapsedMs,
+        message: result.error?.message || 'unknown error'
+      });
+    }
+    return result.value;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export class VisualPlexClient extends EnhancedPlexClient {
@@ -98,22 +128,24 @@ export class VisualPlexClient extends EnhancedPlexClient {
       .filter(Boolean);
   }
 
-  async homeContent() {
-    const [recentAlbums, favorites, playlists] = await Promise.allSettled([
-      this.recentAlbums(),
-      this.favoriteTracks(),
-      this.visualPlaylists()
+  async homeContent({ sectionTimeoutMs = HOME_SECTION_TIMEOUT_MS } = {}) {
+    const startedAt = Date.now();
+    const [recentAlbums, favorites, playlists] = await Promise.all([
+      boundedHomeSection(() => this.recentAlbums(), 'recentAlbums', sectionTimeoutMs),
+      boundedHomeSection(() => this.favoriteTracks(), 'favorites', sectionTimeoutMs),
+      boundedHomeSection(() => this.visualPlaylists(), 'playlists', sectionTimeoutMs)
     ]);
-    const valueOrEmpty = (result) => result.status === 'fulfilled' ? result.value : [];
-    const content = {
-      recentAlbums: valueOrEmpty(recentAlbums),
-      favorites: valueOrEmpty(favorites),
-      playlists: valueOrEmpty(playlists)
-    };
+    const content = { recentAlbums, favorites, playlists };
     content.backgroundImage = content.recentAlbums[0]?.artUrl
       || content.favorites[0]?.artUrl
       || content.playlists[0]?.artUrl
       || '';
+    console.info('Plex home content ready for Alexa launch', {
+      elapsedMs: Date.now() - startedAt,
+      recentAlbums: recentAlbums.length,
+      favorites: favorites.length,
+      playlists: playlists.length
+    });
     return content;
   }
 
