@@ -4,9 +4,26 @@ import { readFile } from 'node:fs/promises';
 
 const visualExperience = await readFile(new URL('../src/visual-experience.js', import.meta.url), 'utf8');
 const visualPlexClient = await readFile(new URL('../src/visual-plex-client.js', import.meta.url), 'utf8');
+const template = await readFile(new URL('../template.yaml', import.meta.url), 'utf8');
 
-test('visual launch still routes through the established home renderer', () => {
-  assert.match(visualExperience, /VisualLaunchRequestHandler[\s\S]*renderHome\(handlerInput, \{ speak: respond\('launch'\) \}\)/);
+function visualLaunchBlock() {
+  const match = visualExperience.match(/export const VisualLaunchRequestHandler = \{[\s\S]*?\n\};/);
+  assert.ok(match, 'VisualLaunchRequestHandler must exist');
+  return match[0];
+}
+
+test('visual launch reads only the cached home snapshot before rendering', () => {
+  const launch = visualLaunchBlock();
+  assert.match(launch, /loadLaunchHome\(homeSnapshotStore\)/);
+  assert.match(launch, /content: launchHome\.content/);
+  assert.doesNotMatch(launch, /plex\.homeContent/);
+  assert.doesNotMatch(launch, /recentAlbums|favoriteTracks|visualPlaylists/);
+});
+
+test('visual launch has a speech-only final fallback if APL rendering fails', () => {
+  const launch = visualLaunchBlock();
+  assert.match(launch, /Visual launch rendering failed, using speech-only fallback/);
+  assert.match(launch, /reprompt\('What should I play from Plex\?'\)/);
 });
 
 test('launch hardening is isolated from radio and lyric controls', () => {
@@ -15,10 +32,17 @@ test('launch hardening is isolated from radio and lyric controls', () => {
   assert.match(visualExperience, /queue\.lyricsOffsetMs/);
 });
 
-test('Plex home sections have an explicit bounded launch budget', () => {
+test('interactive Plex home loading remains independently bounded', () => {
   assert.match(visualPlexClient, /HOME_SECTION_TIMEOUT_MS = 750/);
   assert.match(visualPlexClient, /Promise\.race\(\[lookup, timeout\]\)/);
   assert.match(visualPlexClient, /boundedHomeSection\(\(\) => this\.recentAlbums\(\)/);
   assert.match(visualPlexClient, /boundedHomeSection\(\(\) => this\.favoriteTracks\(\)/);
   assert.match(visualPlexClient, /boundedHomeSection\(\(\) => this\.visualPlaylists\(\)/);
+});
+
+test('SAM template refreshes the home snapshot outside Alexa requests', () => {
+  assert.match(template, /HomeRefreshFunction:/);
+  assert.match(template, /Handler: src\/home-refresh\.handler/);
+  assert.match(template, /Schedule: rate\(5 minutes\)/);
+  assert.match(template, /QUEUE_TABLE: !Ref QueueTable/);
 });
