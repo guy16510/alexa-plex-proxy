@@ -1,4 +1,5 @@
 import { loadConfig } from './config.js';
+import { HomeSnapshotStore } from './home-snapshot-store.js';
 import { createResponder } from './personality.js';
 import { VisualPlexClient } from './visual-plex-client.js';
 import { QueueStore } from './queue-store.js';
@@ -20,3 +21,4 @@ export const plex = new VisualPlexClient({
   allowPlaylistWrites: config.allowPlaylistWrites
 });
 export const queueStore = new QueueStore({ tableName: config.queueTable });
+export const homeSnapshotStore = new HomeSnapshotStore({ tableName: config.queueTable });
