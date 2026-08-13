@@ -29,7 +29,12 @@ if (fn.Runtime !== 'nodejs22.x' || fn.MemorySize !== 512 || fn.Timeout !== 30) t
 const policy = runJson('aws', ['lambda', 'get-policy', '--function-name', lambdaArn, '--region', region, '--output', 'json'], { env: awsEnv });
 const statements = JSON.parse(policy.Policy).Statement ?? [];
 const alexaPermission = statements.some((item) => item.Principal?.Service === 'alexa-appkit.amazon.com'
-  && String(item.Condition?.ArnLike?.['AWS:SourceArn'] ?? item.Condition?.StringEquals?.['AWS:SourceArn'] ?? '').includes(skillId));
+  && String(
+    item.Condition?.StringEquals?.['lambda:EventSourceToken']
+    ?? item.Condition?.ArnLike?.['AWS:SourceArn']
+    ?? item.Condition?.StringEquals?.['AWS:SourceArn']
+    ?? ''
+  ).includes(skillId));
 if (!alexaPermission) throw new Error('AlexaSkill Lambda permission is missing or points at a different Skill ID.');
 
 const deployedModelResponse = askJson(['get-interaction-model', '--skill-id', skillId, '--stage', stage, '--locale', locale]);
