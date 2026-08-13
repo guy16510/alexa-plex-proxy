@@ -27,3 +27,12 @@ test('Alexa interaction model uses Burns Jukebox without changing intents or cus
     'intent samples and custom types must remain unchanged during the rename'
   );
 });
+
+test('deployment pushes, waits for, and verifies the Alexa interaction model', async () => {
+  const deployScript = await readFile(new URL('../scripts/deploy.mjs', import.meta.url), 'utf8');
+  assert.match(deployScript, /set-interaction-model/);
+  assert.match(deployScript, /get-skill-status/);
+  assert.match(deployScript, /get-interaction-model/);
+  assert.match(deployScript, /deployedInvocationName === expectedInvocationName/);
+  assert.match(deployScript, /await deployAlexaInteractionModel\(\)/);
+});
