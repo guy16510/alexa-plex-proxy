@@ -10,7 +10,9 @@
     "check": "node --check src/*.js src/handlers/*.js scripts/*.mjs && node -e \"JSON.parse(require('node:fs').readFileSync('interaction-model/en-US.json','utf8'))\"",
     "validate:model": "node scripts/validate-model.mjs",
     "discover:plex": "node scripts/discover-plex.mjs",
-    "deploy": "node scripts/deploy.mjs"
+    "deploy": "node scripts/deploy.mjs",
+    "deploy:alexa": "node scripts/deploy-alexa.mjs",
+    "verify:deployment": "node scripts/verify-deployment.mjs"
   },
   "engines": {
     "node": ">=22"

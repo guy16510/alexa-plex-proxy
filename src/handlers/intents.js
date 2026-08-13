@@ -27,33 +27,38 @@ function intentDetails(intentName) {
 async function playResult(handlerInput, result, {
   shuffle = false,
   speechKey = null,
-  spokenTitle = null
+  spokenTitle = null,
+  dependencies = {}
 } = {}) {
+  const activeStore = dependencies.store ?? queueStore;
+  const activePlex = dependencies.plexClient ?? plex;
+  const activeRespond = dependencies.responder ?? respond;
+  const activeConfig = dependencies.settings ?? config;
   const query = spokenTitle ?? result?.title ?? 'that';
   const userId = getUserId(handlerInput);
-  const blockedTrackIds = await queueStore.getBlockedTrackIds(userId);
+  const blockedTrackIds = await activeStore.getBlockedTrackIds(userId);
   const playableTracks = (result?.tracks ?? []).filter((track) => !blockedTrackIds.has(track.ratingKey));
   if (playableTracks.length === 0) {
     return handlerInput.responseBuilder
-      .speak(respond('notFound', { query }))
+      .speak(activeRespond('notFound', { query }))
       .getResponse();
   }
 
-  const queue = createQueue(playableTracks.slice(0, config.maxQueueTracks), {
+  const queue = createQueue(playableTracks.slice(0, activeConfig.maxQueueTracks), {
     sourceTitle: result.title,
     sourceKind: result.kind,
-    ttlHours: config.queueTtlHours
+    ttlHours: activeConfig.queueTtlHours
   });
   if (shuffle) {
     moveTo(queue, Math.floor(Math.random() * queue.tracks.length));
     setShuffle(queue, true);
   }
-  await queueStore.put(userId, queue);
+  await activeStore.put(userId, queue);
 
   const key = speechKey ?? (shuffle ? 'shuffling' : 'playing');
   return handlerInput.responseBuilder
-    .speak(respond(key, { title: result.title }))
-    .addDirective(await playDirective({ queue, position: queue.index, plex }))
+    .speak(activeRespond(key, { title: result.title }))
+    .addDirective(await playDirective({ queue, position: queue.index, plex: activePlex }))
     .withShouldEndSession(true)
     .getResponse();
 }
@@ -84,7 +89,10 @@ function findNextPlayableIndex(queue) {
   return null;
 }
 
-export const PlayMediaIntentHandler = {
+export function createPlayMediaIntentHandler(dependencies = {}) {
+  const activePlex = dependencies.plexClient ?? plex;
+  const activeRespond = dependencies.responder ?? respond;
+  return {
   canHandle(handlerInput) {
     if (Alexa.getRequestType(handlerInput.requestEnvelope) !== 'IntentRequest') return false;
     return [
@@ -103,15 +111,18 @@ export const PlayMediaIntentHandler = {
     const query = getSlotValue(handlerInput, 'query');
     if (!query) {
       return handlerInput.responseBuilder
-        .speak(respond('missingQuery'))
+        .speak(activeRespond('missingQuery'))
         .reprompt('Try saying, play songs by Queen.')
         .getResponse();
     }
 
-    const result = await plex.resolve(kind, query);
-    return playResult(handlerInput, result, { shuffle, spokenTitle: query });
+    const result = await activePlex.resolve(kind, query);
+    return playResult(handlerInput, result, { shuffle, spokenTitle: query, dependencies });
   }
-};
+  };
+}
+
+export const PlayMediaIntentHandler = createPlayMediaIntentHandler();
 
 export const PlayGenreIntentHandler = {
   canHandle: canHandleIntent('PlayGenreIntent'),

@@ -30,9 +30,12 @@ test('Alexa interaction model uses Burns Jukebox without changing intents or cus
 
 test('deployment pushes, waits for, and verifies the Alexa interaction model', async () => {
   const deployScript = await readFile(new URL('../scripts/deploy.mjs', import.meta.url), 'utf8');
-  assert.match(deployScript, /set-interaction-model/);
-  assert.match(deployScript, /get-skill-status/);
-  assert.match(deployScript, /get-interaction-model/);
-  assert.match(deployScript, /deployedInvocationName === expectedInvocationName/);
-  assert.match(deployScript, /await deployAlexaInteractionModel\(\)/);
+  const alexaScript = await readFile(new URL('../scripts/deploy-alexa.mjs', import.meta.url), 'utf8');
+  const verifyScript = await readFile(new URL('../scripts/verify-deployment.mjs', import.meta.url), 'utf8');
+  assert.match(deployScript, /scripts\/deploy-alexa\.mjs/);
+  assert.match(deployScript, /scripts\/verify-deployment\.mjs/);
+  assert.match(alexaScript, /set-interaction-model/);
+  assert.match(alexaScript, /get-interaction-model-metadata/);
+  assert.match(verifyScript, /get-interaction-model/);
+  assert.match(verifyScript, /modelHash\(local\) !== modelHash\(deployedModel\)/);
 });

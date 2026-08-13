@@ -4,10 +4,14 @@ import { stopDirective } from '../playback.js';
 import { getApplicationId, isPlaybackOnlyRequest } from '../request-utils.js';
 import { config, respond } from '../runtime.js';
 import { redactPlexSecrets } from '../plex-client.js';
+import { RequestDeadlineExceededError } from '../request-deadline.js';
+import { recordRequestError, setApplicationIdValidation } from '../request-telemetry.js';
 
 export const ValidateApplicationIdInterceptor = {
   process(handlerInput) {
-    if (getApplicationId(handlerInput) !== config.alexaSkillId) {
+    const valid = getApplicationId(handlerInput) === config.alexaSkillId;
+    setApplicationIdValidation(handlerInput, valid);
+    if (!valid) {
       throw new Error('Alexa Skill ID mismatch');
     }
   }
@@ -70,6 +74,22 @@ export const SessionEndedHandler = {
   }
 };
 
+export const SystemExceptionEncounteredHandler = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'System.ExceptionEncountered';
+  },
+  handle(handlerInput) {
+    const request = handlerInput.requestEnvelope?.request ?? {};
+    console.error('Alexa rejected a skill response', {
+      requestId: request.requestId,
+      causeRequestId: request.cause?.requestId,
+      errorType: request.error?.type,
+      message: redactPlexSecrets(String(request.error?.message ?? 'unknown'))
+    });
+    return emptyResponse(handlerInput);
+  }
+};
+
 export const ErrorHandler = {
   canHandle() {
     return true;
@@ -80,9 +100,14 @@ export const ErrorHandler = {
       message: redactPlexSecrets(error.message),
       requestType: Alexa.getRequestType(handlerInput.requestEnvelope)
     });
-    if (isPlaybackOnlyRequest(handlerInput)) return emptyResponse(handlerInput);
-    return handlerInput.responseBuilder
-      .speak(respond('error'))
+    let response;
+    if (isPlaybackOnlyRequest(handlerInput)) response = emptyResponse(handlerInput);
+    else response = handlerInput.responseBuilder
+      .speak(error instanceof RequestDeadlineExceededError
+        ? 'Plex is taking too long right now. Try again in a moment.'
+        : respond('error'))
       .getResponse();
+    recordRequestError(handlerInput, error, response);
+    return response;
   }
 };

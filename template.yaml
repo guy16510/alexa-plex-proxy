@@ -3,6 +3,11 @@ Transform: AWS::Serverless-2016-10-31
 Description: Private serverless Alexa skill for enhanced Plex music playback
 
 Parameters:
+  DeploymentCommitSha:
+    Type: String
+    Default: unknown
+    AllowedPattern: '^(unknown|[0-9a-f]{40})$'
+    Description: Git commit deployed by the release script for drift verification
   AlexaSkillId:
     Type: String
     Description: Alexa Skill ID, for example amzn1.ask.skill.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
@@ -198,6 +203,7 @@ Resources:
       Environment:
         Variables:
           ALEXA_SKILL_ID: !Ref AlexaSkillId
+          DEPLOYMENT_COMMIT_SHA: !Ref DeploymentCommitSha
           PLEX_URL: !Sub 'https://${PlexOriginDomain}:${PlexOriginPort}'
           PLEX_TOKEN: !Ref PlexToken
           PLEX_MUSIC_LIBRARY: !Ref PlexMusicLibrary
@@ -236,6 +242,7 @@ Resources:
       Environment:
         Variables:
           ALEXA_SKILL_ID: !Ref AlexaSkillId
+          DEPLOYMENT_COMMIT_SHA: !Ref DeploymentCommitSha
           PLEX_URL: !Sub 'https://${PlexOriginDomain}:${PlexOriginPort}'
           PLEX_TOKEN: !Ref PlexToken
           PLEX_MUSIC_LIBRARY: !Ref PlexMusicLibrary

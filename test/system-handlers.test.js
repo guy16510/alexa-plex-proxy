@@ -12,7 +12,9 @@ Object.assign(process.env, {
 
 const {
   ErrorHandler,
-  SystemExceptionEncounteredHandler
+  LaunchRequestHandler,
+  SystemExceptionEncounteredHandler,
+  ValidateApplicationIdInterceptor
 } = await import('../src/handlers/system.js');
 const {
   RequestDeadlineExceededError
@@ -64,4 +66,22 @@ test('System.ExceptionEncountered logs redacted diagnostics and returns no speec
   }
   assert.equal(JSON.stringify(messages).includes('do-not-log'), false);
   assert.equal(JSON.stringify(messages).includes('cause-1'), true);
+});
+
+test('non-APL launch returns immediately with speech and a reprompt', () => {
+  const handlerInput = input({ type: 'LaunchRequest' });
+  handlerInput.responseBuilder.reprompt = function reprompt(value) {
+    handlerInput.reprompt = value;
+    return this;
+  };
+  assert.equal(LaunchRequestHandler.canHandle(handlerInput), true);
+  const response = LaunchRequestHandler.handle(handlerInput);
+  assert.ok(response.outputSpeech.text);
+  assert.match(handlerInput.reprompt, /What should I play/);
+});
+
+test('application ID mismatch is rejected before handler selection', () => {
+  const handlerInput = input({ type: 'LaunchRequest' });
+  handlerInput.requestEnvelope.context = { System: { application: { applicationId: 'wrong-skill' } } };
+  assert.throws(() => ValidateApplicationIdInterceptor.process(handlerInput), /Skill ID mismatch/);
 });

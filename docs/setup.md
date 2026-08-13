@@ -235,3 +235,6 @@ Alexa, ask Burns Jukebox to run diagnostics
 ```
 
 This reports live Plex connectivity, queue size, lyric mode, and playlist-write status.
+# Deployment credentials
+
+Copy `.env.example` to the ignored `.env.local` file. Authenticate AWS (`aws sso login`, if using SSO) and ASK (`npx --yes ask-cli@2.30.7 configure`) before deployment. Then run `npm run deploy`. Use `npm run verify:deployment` at any time to detect AWS or Alexa console drift.

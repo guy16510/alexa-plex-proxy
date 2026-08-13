@@ -21,6 +21,8 @@ import {
 } from './queue.js';
 import { getUserId } from './request-utils.js';
 import { config, homeSnapshotStore, plex, queueStore, respond } from './runtime.js';
+import { setLaunchFallback } from './request-telemetry.js';
+import { createPlayMediaIntentHandler } from './handlers/intents.js';
 
 const PLAY_INTENTS = new Set([
   'PlaySongIntent',
@@ -241,17 +243,23 @@ export async function renderLyrics(handlerInput, queue, { speak = null } = {}) {
     .getResponse();
 }
 
-export const VisualLaunchRequestHandler = {
-  canHandle(handlerInput) {
-    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest'
-      && supportsApl(handlerInput);
-  },
-  async handle(handlerInput) {
+export function createVisualLaunchRequestHandler({
+  snapshotStore = homeSnapshotStore,
+  responder = respond,
+  homeRenderer = renderHome
+} = {}) {
+  return {
+    canHandle(handlerInput) {
+      return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest'
+        && supportsApl(handlerInput);
+    },
+    async handle(handlerInput) {
     const startedAt = Date.now();
-    const launchHome = await loadLaunchHome(homeSnapshotStore);
+    const launchHome = await loadLaunchHome(snapshotStore);
+    if (launchHome.source !== 'snapshot') setLaunchFallback(handlerInput, launchHome.reason);
     try {
-      const response = await renderHome(handlerInput, {
-        speak: respond('launch'),
+      const response = await homeRenderer(handlerInput, {
+        speak: responder('launch'),
         content: launchHome.content
       });
       recordVisualLaunchTelemetry({
@@ -274,13 +282,17 @@ export const VisualLaunchRequestHandler = {
         fallback: true,
         reason: 'apl-render-error'
       });
+      setLaunchFallback(handlerInput, 'apl-render-error');
       return handlerInput.responseBuilder
-        .speak(respond('launch'))
+        .speak(responder('launch'))
         .reprompt('What should I play from Plex?')
         .getResponse();
     }
-  }
-};
+    }
+  };
+}
+
+export const VisualLaunchRequestHandler = createVisualLaunchRequestHandler();
 
 export const VisualPlayMediaIntentHandler = {
   canHandle(handlerInput) {
@@ -301,6 +313,16 @@ export const VisualPlayMediaIntentHandler = {
     return startResolvedResult(handlerInput, result, { shuffle, spokenTitle: query });
   }
 };
+
+export function createVisualPlayMediaIntentHandler(dependencies = {}) {
+  const delegate = createPlayMediaIntentHandler(dependencies);
+  return {
+    canHandle(handlerInput) {
+      return supportsApl(handlerInput) && delegate.canHandle(handlerInput);
+    },
+    handle: delegate.handle
+  };
+}
 
 export const ShowHomeIntentHandler = {
   canHandle(handlerInput) {

@@ -25,7 +25,11 @@ export async function playDirective({
   }
 
   try {
-    const captions = await plex.getTimedLyrics(track);
+    // Use cached/immediately available captions, but never wait on a network lookup.
+    const cached = plex.peekTimedLyrics?.(track) ?? null;
+    const captions = cached ?? (plex.getTimedLyrics
+      ? await Promise.race([Promise.resolve(plex.getTimedLyrics(track)), Promise.resolve(null)])
+      : null);
     if (captions) {
       stream.captionData = {
         type: 'WEBVTT',

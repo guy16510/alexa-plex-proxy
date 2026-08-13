@@ -31,10 +31,10 @@ test('visual launch telemetry emits CloudWatch EMF without full device identifie
   }
 
   const payload = JSON.parse(emitted);
-  assert.equal(payload._aws.CloudWatchMetrics[0].Namespace, 'BurnsJukebox');
-  assert.equal(payload.LaunchSuccess, 1);
-  assert.equal(payload.LaunchFailure, 0);
-  assert.equal(payload.LaunchLatency, 42);
+  assert.equal(payload.event, 'VisualLaunchPath');
+  assert.equal(payload.success, true);
+  assert.equal(payload.fallback, false);
+  assert.equal(payload.latencyMs, 42);
   assert.equal(payload.requestId, 'request-123');
   assert.equal(payload.deviceIdSuffix, '12345678');
   assert.equal(payload.viewport, '960x480');
